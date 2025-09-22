@@ -1,16 +1,1 @@
-# YAML linting configuration for apqx-platform
-# Relaxed configuration for GitOps and infrastructure files
-
-extends: relaxed
-
-rules:
-  line-length:
-    max: 150
-    level: warning
-  comments:
-    min-spaces-from-content: 1
-  document-start: disable
-  trailing-spaces: disable
-  new-line-at-end-of-file: disable
-  truthy:
-    allowed-values: ['true', 'false', 'on', 'off', 'yes', 'no']
+FROM gcr.io/distroless/static-debian12:nonroot

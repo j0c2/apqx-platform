@@ -132,8 +132,8 @@ jobs:
       - name: Run Gosec Security Scanner
         continue-on-error: true
         run: |
-          go install github.com/securecodewarrior/gosec/cmd/gosec@latest
-          cd app && gosec -fmt sarif -out ../gosec-results.sarif -severity medium ./... || true
+          GO111MODULE=on go install github.com/securego/gosec/v2/cmd/gosec@latest
+          cd app && "$HOME"/go/bin/gosec -fmt sarif -out ../gosec-results.sarif -severity medium ./... || true
 
       - name: Upload Gosec scan results
         uses: github/codeql-action/upload-sarif@v3
@@ -230,12 +230,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Install kustomize
-        run: |
-          VERSION=$(curl -s https://api.github.com/repos/kubernetes-sigs/kustomize/releases/latest | grep tag_name | cut -d '"' -f 4)
-          curl -sSL -o kustomize.tar.gz "https://github.com/kubernetes-sigs/kustomize/releases/download/${VERSION}/kustomize_${VERSION#v}_linux_amd64.tar.gz"
-          tar -xzf kustomize.tar.gz
-          sudo mv kustomize /usr/local/bin/kustomize
+      - name: Set up Kustomize
+        uses: imranismail/setup-kustomize@v3
+        with:
+          kustomize-version: v5.4.2
 
       - name: Update image digest in overlay
         working-directory: gitops/apps/app/overlays/dev
