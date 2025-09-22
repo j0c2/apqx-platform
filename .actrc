@@ -1,0 +1,26 @@
+# Act configuration for local GitHub Actions testing
+# This file configures act to run workflows locally for testing
+
+# Use medium sized Docker container for runners
+-P ubuntu-latest=ghcr.io/catthehacker/ubuntu:act-latest
+
+# Set environment variables for local testing
+--env GITHUB_TOKEN=dummy_token
+--env REGISTRY=localhost:5000
+--env IMAGE_NAME=test/sample-app
+
+# Secrets for local testing (placeholder values)
+--secret GITHUB_TOKEN=dummy_token
+
+# Platform mapping for different runner types
+-P ubuntu-20.04=ghcr.io/catthehacker/ubuntu:act-20.04
+-P ubuntu-22.04=ghcr.io/catthehacker/ubuntu:act-22.04
+
+# Verbose output for debugging
+--verbose
+
+# Allow Docker in Docker for building images
+--privileged
+
+# Default artifact directory
+--artifact-server-path /tmp/artifacts

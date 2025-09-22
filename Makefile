@@ -73,33 +73,21 @@ bootstrap: check-deps
 	@echo "$(GREEN)✓ Bootstrap complete - ready to deploy!$(NC)"
 
 ## up: Deploy the complete platform (cluster + apps)
-up: bootstrap
-	@echo "$(BLUE)Deploying apqx-platform...$(NC)"
-	@cd $(TERRAFORM_DIR) && terraform init
-	@cd $(TERRAFORM_DIR) && terraform plan -out=tfplan
-	@cd $(TERRAFORM_DIR) && terraform apply tfplan
-	@rm -f $(TERRAFORM_DIR)/tfplan
-	@echo ""
-	@echo "$(GREEN)✓ Platform deployed successfully!$(NC)"
-	@$(MAKE) status
+up:
+	terraform -chdir=infra/terraform init
+	terraform -chdir=infra/terraform apply -auto-approve
+	@echo "kubectl context:"
+	@kubectl config current-context
 
 ## destroy: Tear down the complete platform
 destroy:
-	@echo "$(RED)Destroying apqx-platform...$(NC)"
-	@read -p "Are you sure you want to destroy the platform? [y/N] " -n 1 -r; \
-	echo ""; \
-	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		cd $(TERRAFORM_DIR) && terraform destroy -auto-approve; \
-		echo "$(GREEN)✓ Platform destroyed$(NC)"; \
-	else \
-		echo "$(YELLOW)Aborted$(NC)"; \
-	fi
+	terraform -chdir=infra/terraform destroy -auto-approve
 
 ## validate: Validate all configurations without applying
 validate: check-deps
 	@echo "$(BLUE)Validating configurations...$(NC)"
-	@cd $(TERRAFORM_DIR) && terraform init -backend=false
-	@cd $(TERRAFORM_DIR) && terraform validate
+	@terraform -chdir=$(TERRAFORM_DIR) init -backend=false
+	@terraform -chdir=$(TERRAFORM_DIR) validate
 	@echo "$(GREEN)✓ Terraform validation passed$(NC)"
 	@find gitops/ -name "*.yaml" -exec kubectl --dry-run=client apply -f {} \; >/dev/null 2>&1
 	@echo "$(GREEN)✓ Kubernetes manifests validation passed$(NC)"
@@ -108,8 +96,8 @@ validate: check-deps
 ## plan: Show Terraform deployment plan
 plan: check-deps
 	@echo "$(BLUE)Generating deployment plan...$(NC)"
-	@cd $(TERRAFORM_DIR) && terraform init
-	@cd $(TERRAFORM_DIR) && terraform plan
+	@terraform -chdir=$(TERRAFORM_DIR) init
+	@terraform -chdir=$(TERRAFORM_DIR) plan
 
 ## diff: Show differences between Git and cluster state
 diff:
@@ -137,8 +125,8 @@ status:
 	@echo "$(BLUE)apqx-platform Status$(NC)"
 	@echo "===================="
 	@echo ""
-	@if k3d cluster list | grep -q $(CLUSTER_NAME); then \
-		echo "$(GREEN)✓ k3d cluster: $(CLUSTER_NAME)$(NC)"; \
+	@if k3d cluster list | grep -q k3d-onprem; then \
+		echo "$(GREEN)✓ k3d cluster: k3d-onprem$(NC)"; \
 	else \
 		echo "$(RED)✗ k3d cluster not found$(NC)"; \
 	fi
@@ -159,8 +147,8 @@ status:
 		echo ""; \
 	fi
 	@echo "$(GREEN)Service URLs:$(NC)"
-	@cd $(TERRAFORM_DIR) && terraform output app_url_local 2>/dev/null || echo "$(YELLOW)Local URL not available$(NC)"
-	@cd $(TERRAFORM_DIR) && terraform output argocd_url_local 2>/dev/null || echo "$(YELLOW)Argo CD URL not available$(NC)"
+	@terraform -chdir=$(TERRAFORM_DIR) output app_url_local 2>/dev/null || echo "$(YELLOW)Local URL not available$(NC)"
+	@echo "$(YELLOW)Argo CD: http://localhost (configure ingress)$(NC)"
 	@echo "$(YELLOW)Tailscale URLs: Check Argo CD UI for MagicDNS URLs$(NC)"
 
 ## dev: Start local development environment

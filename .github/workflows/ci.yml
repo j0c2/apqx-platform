@@ -44,19 +44,19 @@ jobs:
         working-directory: ./app
         run: go vet ./...
 
-      - name: Install staticcheck
-        run: go install honnef.co/go/tools/cmd/staticcheck@latest
-
-      - name: Run staticcheck
+      - name: Install and run staticcheck
         working-directory: ./app
-        run: staticcheck ./...
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          staticcheck ./...
 
       - name: Run tests
         working-directory: ./app
         run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
+        continue-on-error: true
         with:
           file: ./app/coverage.out
           fail_ci_if_error: false
@@ -144,7 +144,7 @@ jobs:
   build:
     name: Build and Push
     runs-on: ubuntu-latest
-    needs: [test, lint]
+    needs: [test, lint]  # security not required for build
     if: >
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
       needs.test.result == 'success' && needs.lint.result == 'success'
@@ -222,7 +222,7 @@ jobs:
     needs: [build]
     if: >
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      needs.test.result == 'success' && needs.lint.result == 'success'
+      needs.build.result == 'success'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -232,8 +232,9 @@ jobs:
 
       - name: Install kustomize
         run: |
-          GO111MODULE=on go install sigs.k8s.io/kustomize/kustomize/v5@v5.4.2
-          echo "$HOME/go/bin" >> $GITHUB_PATH
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+          kustomize version
 
       - name: Update image digest in overlay
         working-directory: gitops/apps/app/overlays/dev
@@ -246,7 +247,7 @@ jobs:
             echo "Unexpected digest format: $IMAGE_DIGEST" && exit 1
           fi
           # Set the image to the exact digest using kustomize
-          "$HOME"/go/bin/kustomize edit set image "${IMAGE_NAME}@${IMAGE_DIGEST}"
+          kustomize edit set image "${IMAGE_NAME}@${IMAGE_DIGEST}"
 
       - name: Commit and push changes
         run: |

@@ -1,91 +1,43 @@
-# k3d cluster configuration for apqx-platform
-# Manages k3d-specific cluster settings and networking
-
-# Create required namespaces
-resource "kubernetes_namespace" "argocd" {
-  metadata {
-    name = var.argocd_namespace
-    labels = merge(local.common_labels, {
-      "app.kubernetes.io/component" = "argocd"
-    })
-  }
-  depends_on = [time_sleep.cluster_ready]
+locals {
+  cluster_name    = "k3d-onprem"
+  kubeconfig_path = pathexpand("~/.kube/config")
 }
 
-resource "kubernetes_namespace" "kyverno" {
-  metadata {
-    name = var.kyverno_namespace
-    labels = merge(local.common_labels, {
-      "app.kubernetes.io/component" = "kyverno"
-    })
+resource "null_resource" "k3d_cluster" {
+  # Create cluster (1 server, 1 agent; expose 80/443 on agent:0)
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -euo pipefail
+      if ! k3d cluster list | grep -q "^${local.cluster_name}\\b"; then
+        k3d cluster create ${local.cluster_name} \
+          --servers 1 \
+          --agents 1 \
+          --port "80:80@agent:0" \
+          --port "443:443@agent:0" \
+          --wait
+      else
+        echo "Cluster ${local.cluster_name} already exists; skipping create"
+      fi
+    EOT
   }
-  depends_on = [time_sleep.cluster_ready]
-}
 
-resource "kubernetes_namespace" "tailscale" {
-  metadata {
-    name = var.tailscale_namespace
-    labels = merge(local.common_labels, {
-      "app.kubernetes.io/component" = "tailscale"
-    })
+  # Merge kubeconfig & switch context
+  provisioner "local-exec" {
+    command = "k3d kubeconfig merge ${local.cluster_name} --kubeconfig-switch-context"
   }
-  depends_on = [time_sleep.cluster_ready]
-}
 
-# Traefik IngressRoute for routing
-resource "kubernetes_manifest" "traefik_ingressroute" {
-  manifest = {
-    apiVersion = "traefik.containo.us/v1alpha1"
-    kind       = "IngressRoute"
-    metadata = {
-      name      = "app-ingressroute"
-      namespace = var.namespace
-      labels    = local.common_labels
-    }
-    spec = {
-      entryPoints = ["web"]
-      routes = [
-        {
-          match = "Host(`app.${local.local_ip}.sslip.io`)"
-          kind  = "Rule"
-          services = [
-            {
-              name = var.app_name
-              port = 8080
-            }
-          ]
-        }
-      ]
-    }
+  # Wait for nodes Ready
+  provisioner "local-exec" {
+    command = "kubectl wait --for=condition=Ready nodes --all --timeout=300s"
   }
-  depends_on = [time_sleep.cluster_ready]
-}
 
-# Traefik IngressRoute for Argo CD
-resource "kubernetes_manifest" "argocd_ingressroute" {
-  manifest = {
-    apiVersion = "traefik.containo.us/v1alpha1"
-    kind       = "IngressRoute"
-    metadata = {
-      name      = "argocd-ingressroute"
-      namespace = var.argocd_namespace
-      labels    = local.common_labels
-    }
-    spec = {
-      entryPoints = ["web"]
-      routes = [
-        {
-          match = "Host(`argocd.${local.local_ip}.sslip.io`)"
-          kind  = "Rule"
-          services = [
-            {
-              name = "argocd-server"
-              port = 80
-            }
-          ]
-        }
-      ]
-    }
+  # Destroy cluster
+  provisioner "local-exec" {
+    when    = destroy
+    command = "k3d cluster delete k3d-onprem || true"
   }
-  depends_on = [kubernetes_namespace.argocd]
+
+  triggers = {
+    cluster_name = local.cluster_name
+  }
 }
