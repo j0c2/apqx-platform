@@ -1,20 +1,15 @@
-# Development overlay Kustomization for sample application
-# Environment-specific configuration for development
-
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-- ../../base
-
-namePrefix: dev-
-
-commonLabels:
-  environment: dev
-
-patchesStrategicMerge:
-- replica-patch.yaml
+  - ../../base
 
 images:
-- name: ghcr.io/example/sample-app
-  newTag: dev-latest
+  - name: ghcr.io/example/sample-app
+    newName: ghcr.io/example/sample-app
+    # newTag will be replaced by CI with the immutable digest (e.g., sha256:abc...)
+    newTag: sha256:PLACEHOLDER
+
+# Optional: keep base immutable; if base Deployment hardcodes an image, add a small image patch here instead.
+# patches:
+#   - path: image-patch.yaml

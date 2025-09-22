@@ -3,6 +3,10 @@
 
 name: CI
 
+concurrency:
+  group: gitops-update-${{ github.ref }}
+  cancel-in-progress: false
+
 on:
   push:
     branches: [ main, develop ]
@@ -216,7 +220,9 @@ jobs:
     name: Update GitOps
     runs-on: ubuntu-latest
     needs: [build]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      needs.test.result == 'success' && needs.lint.result == 'success'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -224,21 +230,27 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Update image digest in GitOps manifests
-        env:
-          IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
-          IMAGE_NAME: ${{ needs.build.outputs.image }}
+      - name: Install kustomize
         run: |
-          # Update the image reference in Kustomization
-          sed -i "s|newTag: .*|newTag: \"${IMAGE_DIGEST}\"|" gitops/apps/app/base/kustomization.yaml
+          VERSION=$(curl -s https://api.github.com/repos/kubernetes-sigs/kustomize/releases/latest | grep tag_name | cut -d '"' -f 4)
+          curl -sSL -o kustomize.tar.gz "https://github.com/kubernetes-sigs/kustomize/releases/download/${VERSION}/kustomize_${VERSION#v}_linux_amd64.tar.gz"
+          tar -xzf kustomize.tar.gz
+          sudo mv kustomize /usr/local/bin/kustomize
 
-          # Update the image reference in deployment
-          sed -i "s|image: ghcr.io/example/sample-app@sha256:.*|image: ${IMAGE_NAME}@${IMAGE_DIGEST}|" \
-            gitops/apps/app/base/deployment.yaml
+      - name: Update image digest in overlay
+        working-directory: gitops/apps/app/overlays/dev
+        env:
+          IMAGE_NAME: ghcr.io/${{ github.repository }}/sample-app
+          IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          # Ensure digest starts with sha256:
+          if ! echo "$IMAGE_DIGEST" | grep -q '^sha256:'; then
+            echo "Unexpected digest format: $IMAGE_DIGEST" && exit 1
+          fi
+          # Set the image to the exact digest using kustomize
+          kustomize edit set image "${IMAGE_NAME}@${IMAGE_DIGEST}"
 
       - name: Commit and push changes
-        env:
-          IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
@@ -246,16 +258,12 @@ jobs:
           # Pull latest changes to avoid conflicts
           git pull origin main || echo "Pull failed, continuing..."
 
-          git add gitops/apps/app/
+          git add gitops/apps/app/overlays/dev/kustomization.yaml
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "chore: update sample-app image digest to ${IMAGE_DIGEST:0:12}"
-
-            # Retry push with rebase if needed
-            git push origin main || {
-              echo "Push failed, trying with rebase..."
-              git pull --rebase origin main
-              git push origin main
-            }
+            SHORT="${{ needs.build.outputs.digest }}"
+            SHORT="${SHORT#sha256:}"; SHORT=${SHORT:0:12}
+            git commit -m "chore: update sample-app image digest to ${SHORT}"
+            git push origin "${GITHUB_REF_NAME:-main}"
           fi

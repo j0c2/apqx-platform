@@ -61,6 +61,21 @@ The following placeholders need to be configured:
 | `<LOCAL-IP>` | Your machine's local IP address | Auto-detected during deployment |
 | `<tailnet>` | Your Tailscale tailnet name | Auto-detected from Tailscale status |
 
+## GitOps Workflow
+
+This platform uses a **immutable base + overlay** pattern for GitOps:
+
+- **Base manifests** (`gitops/apps/app/base/`): Immutable, never modified by CI
+- **Overlay** (`gitops/apps/app/overlays/dev/`): Updated by CI with image digests
+- **Platform controllers**: Managed via Helm chart versions, not automated updates
+
+### CI/CD Flow
+
+1. **Code push** triggers CI pipeline
+2. **Build & push** creates container image with immutable digest
+3. **GitOps update** modifies overlay with new digest using kustomize
+4. **Argo CD** auto-syncs from overlay to deploy new version
+
 ## GitHub Actions Setup
 
 For the CI/CD workflows to work properly, ensure your repository has:
@@ -70,6 +85,31 @@ For the CI/CD workflows to work properly, ensure your repository has:
    - Check "Allow GitHub Actions to create and approve pull requests"
 
 2. **Container registry access**: GitHub Container Registry (GHCR) access is automatic
+
+## Validation
+
+After CI runs on main, validate the deployment:
+
+### Check GitOps Sync
+```bash
+# Verify Argo CD picked up the new digest
+kubectl -n argocd get applications
+
+# Check application deployment
+kubectl -n default describe deploy/sample-app
+# Should show: image: ghcr.io/<repo>/sample-app@sha256:...
+```
+
+### Verify Application Access
+- **Local**: `http://app.<LOCAL-IP>.sslip.io/`
+- **Tailscale**: `https://app<name>.<tailnet>.net`
+
+### Check Overlay Structure
+```bash
+# Verify overlay applies correctly
+cd gitops/apps/app/overlays/dev
+kustomize build .
+```
 
 ## Cleanup
 
