@@ -32,7 +32,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: sample-app
-        image: ghcr.io/example/sample-app@sha256:placeholder
+        image: ghcr.io/j0c2/apqx-platform/sample-app@sha256:placeholder
         ports:
         - name: http
           containerPort: 8080

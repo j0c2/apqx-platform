@@ -12,8 +12,7 @@ resources:
 
 # Image configuration - digest will be updated by CI pipeline
 images:
-- name: ghcr.io/example/sample-app
-  newName: ghcr.io/j0c2/apqx-platform/sample-app
+- name: ghcr.io/j0c2/apqx-platform/sample-app
   digest: sha256:placeholder
 
 labels:
