@@ -1,5 +1,5 @@
 # Dev environment ingress
-# Exposes the sample app for local development access
+# Exposes the sample app via Traefik with sslip.io DNS
 
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -12,12 +12,12 @@ metadata:
     app.kubernetes.io/part-of: apqx-platform
     environment: dev
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.middlewares: default-headers@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
-  - host: sample-app.local
+  - host: app.192.168.1.89.sslip.io
     http:
       paths:
       - path: /
@@ -27,6 +27,7 @@ spec:
             name: sample-app
             port:
               name: http
+  # Fallback rule for direct access via LoadBalancer
   - http:
       paths:
       - path: /
