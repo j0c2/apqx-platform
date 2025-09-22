@@ -1,0 +1,9 @@
+# Development replica patch
+# Reduces replica count for development environment
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-app
+spec:
+  replicas: 1

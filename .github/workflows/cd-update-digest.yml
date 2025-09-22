@@ -1,0 +1,236 @@
+# CD workflow for updating container image digests
+# Automatically updates GitOps manifests when new images are published
+
+name: Update Image Digest
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches: [main]
+  schedule:
+    # Check for updated base images daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      image:
+        description: 'Image to update (e.g., sample-app)'
+        required: true
+        default: 'sample-app'
+      tag:
+        description: 'Tag to update to (e.g., latest, v1.0.0)'
+        required: false
+        default: 'latest'
+
+env:
+  REGISTRY: ghcr.io
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  update-digest:
+    name: Update Container Image Digests
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    
+    strategy:
+      matrix:
+        component:
+          - name: sample-app
+            path: gitops/apps/app/base
+            files: [deployment.yaml, kustomization.yaml]
+          - name: argocd
+            path: infra/terraform
+            files: [helm_argo.tf]
+          - name: kyverno
+            path: infra/terraform
+            files: [helm_kyverno.tf]
+          - name: tailscale-operator
+            path: infra/terraform
+            files: [helm_tailscale.tf]
+          - name: sealed-secrets
+            path: infra/terraform
+            files: [helm_sealedsecrets.tf]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up crane (for image digest inspection)
+        uses: imjasonh/setup-crane@v0.3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get latest image digest
+        id: digest
+        run: |
+          case "${{ matrix.component.name }}" in
+            "sample-app")
+              IMAGE="${{ env.REGISTRY }}/${{ github.repository }}/sample-app"
+              TAG="${{ github.event.inputs.tag || 'latest' }}"
+              ;;
+            "argocd")
+              IMAGE="quay.io/argoproj/argocd"
+              TAG="v2.9.3"
+              ;;
+            "kyverno")
+              IMAGE="ghcr.io/kyverno/kyverno"
+              TAG="v1.11.0"
+              ;;
+            "tailscale-operator")
+              IMAGE="tailscale/tailscale"
+              TAG="v1.56.1"
+              ;;
+            "sealed-secrets")
+              IMAGE="quay.io/bitnami/sealed-secrets-controller"
+              TAG="v0.24.0"
+              ;;
+          esac
+          
+          echo "IMAGE=${IMAGE}" >> $GITHUB_OUTPUT
+          echo "TAG=${TAG}" >> $GITHUB_OUTPUT
+          
+          # Get the digest for the specified tag
+          DIGEST=$(crane digest "${IMAGE}:${TAG}")
+          echo "DIGEST=${DIGEST}" >> $GITHUB_OUTPUT
+          echo "Retrieved digest for ${IMAGE}:${TAG} = ${DIGEST}"
+
+      - name: Update image references
+        id: update
+        run: |
+          UPDATED=false
+          IMAGE="${{ steps.digest.outputs.IMAGE }}"
+          TAG="${{ steps.digest.outputs.TAG }}"
+          DIGEST="${{ steps.digest.outputs.DIGEST }}"
+          
+          for file in ${{ join(matrix.component.files, ' ') }}; do
+            FILE_PATH="${{ matrix.component.path }}/${file}"
+            
+            if [[ ! -f "$FILE_PATH" ]]; then
+              echo "File $FILE_PATH not found, skipping..."
+              continue
+            fi
+            
+            echo "Processing $FILE_PATH..."
+            
+            case "$file" in
+              *.yaml)
+                # Update Kubernetes YAML files
+                if grep -q "$IMAGE" "$FILE_PATH"; then
+                  # Update image references with digests
+                  sed -i.bak "s|${IMAGE}@sha256:[a-f0-9]*|${IMAGE}@${DIGEST}|g" "$FILE_PATH"
+                  sed -i.bak "s|${IMAGE}:${TAG}|${IMAGE}@${DIGEST}|g" "$FILE_PATH"
+                  
+                  # Update Kustomization newTag references
+                  if [[ "$file" == "kustomization.yaml" ]]; then
+                    sed -i.bak "s|newTag: .*|newTag: \"${DIGEST}\"|" "$FILE_PATH"
+                  fi
+                  
+                  # Check if file was actually modified
+                  if ! cmp -s "$FILE_PATH" "$FILE_PATH.bak"; then
+                    UPDATED=true
+                    echo "Updated $FILE_PATH"
+                  fi
+                  rm -f "$FILE_PATH.bak"
+                fi
+                ;;
+              *.tf)
+                # Update Terraform files
+                if grep -q "$IMAGE" "$FILE_PATH"; then
+                  # Update Terraform image tags with digests
+                  sed -i.bak "s|tag.*=.*\"${TAG}@sha256:[a-f0-9]*\"|tag = \"${TAG}@${DIGEST}\"|g" "$FILE_PATH"
+                  sed -i.bak "s|tag.*=.*\"${TAG}\"|tag = \"${TAG}@${DIGEST}\"|g" "$FILE_PATH"
+                  
+                  # Check if file was actually modified
+                  if ! cmp -s "$FILE_PATH" "$FILE_PATH.bak"; then
+                    UPDATED=true
+                    echo "Updated $FILE_PATH"
+                  fi
+                  rm -f "$FILE_PATH.bak"
+                fi
+                ;;
+            esac
+          done
+          
+          echo "UPDATED=${UPDATED}" >> $GITHUB_OUTPUT
+
+      - name: Commit changes
+        if: steps.update.outputs.UPDATED == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          git add ${{ matrix.component.path }}
+          
+          SHORT_DIGEST="${{ steps.digest.outputs.DIGEST }}"
+          SHORT_DIGEST="${SHORT_DIGEST:7:12}"  # Extract first 12 chars after 'sha256:'
+          
+          git commit -m "chore: update ${{ matrix.component.name }} image digest to ${SHORT_DIGEST}
+
+          Updated ${{ matrix.component.name }} image references:
+          - Image: ${{ steps.digest.outputs.IMAGE }}
+          - Tag: ${{ steps.digest.outputs.TAG }}
+          - Digest: ${{ steps.digest.outputs.DIGEST }}
+          
+          Files updated:
+          $(echo '${{ join(matrix.component.files, ', ') }}' | sed 's/,/\n-/g' | sed 's/^/- /')"
+
+      - name: Push changes
+        if: steps.update.outputs.UPDATED == 'true'
+        run: |
+          git push origin main
+
+  verify-updates:
+    name: Verify Updates
+    runs-on: ubuntu-latest
+    needs: update-digest
+    if: always()
+    steps:
+      - name: Checkout updated code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Validate YAML files
+        run: |
+          # Install yamllint if not available
+          pip install yamllint
+          
+          # Validate all YAML files in GitOps directory
+          find gitops/ -name "*.yaml" -o -name "*.yml" | xargs yamllint -d relaxed
+
+      - name: Validate Terraform files
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.6"
+
+      - name: Terraform format check
+        run: |
+          cd infra/terraform
+          terraform fmt -check -recursive
+
+      - name: Terraform validate
+        run: |
+          cd infra/terraform
+          terraform init -backend=false
+          terraform validate
+
+      - name: Summary
+        run: |
+          echo "✅ Image digest update workflow completed successfully"
+          echo ""
+          echo "Next steps:"
+          echo "1. Argo CD will detect the changes and sync automatically"
+          echo "2. New container images will be deployed to the cluster"
+          echo "3. Monitor the deployment in Argo CD UI"
