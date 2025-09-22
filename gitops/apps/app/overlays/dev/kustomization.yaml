@@ -2,14 +2,12 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - ../../base
+- ../../base
 
-images:
-  - name: ghcr.io/example/sample-app
-    newName: ghcr.io/example/sample-app
     # newTag will be replaced by CI with the immutable digest (e.g., sha256:abc...)
-    newTag: sha256:PLACEHOLDER
-
-# Optional: keep base immutable; if base Deployment hardcodes an image, add a small image patch here instead.
-# patches:
-#   - path: image-patch.yaml
+images:
+- name: ghcr.io/example/sample-app
+  newName: ghcr.io/example/sample-app
+  newTag: sha256:PLACEHOLDER
+- digest: sha256:1faf10320881df1d73c13d69c18de367dce5aa312cb6d44ea7a49785a4765fc9
+  name: ghcr.io/j0c2/apqx-platform/sample-app
