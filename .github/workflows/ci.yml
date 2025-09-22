@@ -94,6 +94,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
       - name: Run Trivy vulnerability scanner (filesystem)
         uses: aquasecurity/trivy-action@master
         with:
@@ -109,13 +114,13 @@ jobs:
           sarif_file: 'trivy-results.sarif'
 
       - name: Run Gosec Security Scanner
-        uses: securecodewarrior/github-action-gosec@master
-        with:
-          args: '-fmt sarif -out gosec-results.sarif ./app/...'
+        run: |
+          go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+          cd app && gosec -fmt sarif -out ../gosec-results.sarif ./...
 
       - name: Upload Gosec scan results
         uses: github/codeql-action/upload-sarif@v2
-        if: always()
+        if: always() && hashFiles('gosec-results.sarif') != ''
         with:
           sarif_file: 'gosec-results.sarif'
 
@@ -126,7 +131,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     outputs:
       digest: ${{ steps.build.outputs.digest }}
-      image: ${{ steps.build.outputs.image }}
+      image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -205,7 +210,7 @@ jobs:
       - name: Update image digest in GitOps manifests
         env:
           IMAGE_DIGEST: ${{ needs.build.outputs.digest }}
-          IMAGE_NAME: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          IMAGE_NAME: ${{ needs.build.outputs.image }}
         run: |
           # Update the image reference in Kustomization
           sed -i "s|newTag: .*|newTag: \"${IMAGE_DIGEST}\"|" gitops/apps/app/base/kustomization.yaml
