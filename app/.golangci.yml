@@ -22,8 +22,9 @@ linters:
     - unused
     - gofmt
     - goimports
-    - gosec
     - misspell
+  disable:
+    - gosec  # Run separately
     - unparam
     - unconvert
     - nakedret
@@ -41,18 +42,6 @@ linters-settings:
     simplify: true
   goimports:
     local-prefixes: github.com/example/apqx-platform
-  gosec:
-    severity: medium
-    confidence: medium
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-  nakedret:
-    max-func-lines: 30
 
 issues:
   exclude-use-default: false

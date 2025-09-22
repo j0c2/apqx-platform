@@ -163,4 +163,3 @@ func TestAppInfo(t *testing.T) {
 		t.Error("startTime should be in the past")
 	}
 }
-

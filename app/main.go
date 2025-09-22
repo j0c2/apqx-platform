@@ -51,8 +51,17 @@ func main() {
 	// Static file serving (if needed)
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
 
+	// Create HTTP server with security timeouts
+	srv := &http.Server{
+		Addr:         ":" + port,
+		Handler:      r,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
 	log.Printf("Starting %s v%s on port %s", appName, version, port)
-	log.Fatal(http.ListenAndServe(":"+port, r))
+	log.Fatal(srv.ListenAndServe())
 }
 
 // healthHandler returns the health status of the application
@@ -206,12 +215,12 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 			"/api/status",
 		},
 		"platform": map[string]string{
-			"gitops":    "argocd",
-			"policies":  "kyverno",
-			"secrets":   "sealed-secrets",
-			"ingress":   "traefik",
-			"cluster":   "k3d",
-			"network":   "tailscale",
+			"gitops":   "argocd",
+			"policies": "kyverno",
+			"secrets":  "sealed-secrets",
+			"ingress":  "traefik",
+			"cluster":  "k3d",
+			"network":  "tailscale",
 		},
 	}
 
