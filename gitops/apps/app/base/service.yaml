@@ -15,6 +15,9 @@ metadata:
     prometheus.io/scrape: "true"
     prometheus.io/port: "8080"
     prometheus.io/path: "/metrics"
+    # Tailscale: Expose service via MagicDNS
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: "app-onprem"
 spec:
   type: ClusterIP
   ports:
