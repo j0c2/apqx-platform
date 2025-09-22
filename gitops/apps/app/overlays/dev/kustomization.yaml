@@ -9,5 +9,5 @@ images:
 - name: ghcr.io/example/sample-app
   newName: ghcr.io/example/sample-app
   newTag: sha256:PLACEHOLDER
-- digest: sha256:fef9dd7a04adc03be03c47f566ac7f8e1b01e31af551469123d3a99de02c3d6a
+- digest: sha256:22b6d6f623936e1e0efacda5aadd8de13a51da1f89003ed31115ca5de1228895
   name: ghcr.io/j0c2/apqx-platform/sample-app
