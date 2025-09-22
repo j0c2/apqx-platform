@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
       - name: sample-app
-        image: ghcr.io/example/sample-app@sha256:placeholder
+        image: ghcr.io/j0c2/apqx-platform/sample-app@sha256:c6dd9ced0f39574019121caa889cb0e3f33707f957f1cd50ade4c2255abf8799
         ports:
         - containerPort: 8080
           name: http
