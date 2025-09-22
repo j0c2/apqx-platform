@@ -1,0 +1,24 @@
+# Kyverno Policy: Require Dedicated ServiceAccount
+# Denies use of default ServiceAccount, enforces least privilege
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-dedicated-sa
+spec:
+  validationFailureAction: Enforce
+  rules:
+    - name: no-default-sa
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+      validate:
+        message: "Use a dedicated ServiceAccount (not default)"
+        deny:
+          conditions:
+            any:
+              - key: "object.spec.template.spec.serviceAccountName"
+                operator: Equals
+                value: "default"

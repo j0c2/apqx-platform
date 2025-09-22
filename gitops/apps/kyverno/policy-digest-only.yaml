@@ -1,0 +1,21 @@
+# Kyverno Policy: Require Image Digest Pinning
+# Enforces SHA256 digest pinning, denies mutable tags
+
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-image-digest
+spec:
+  validationFailureAction: Enforce
+  rules:
+    - name: image-must-be-digest
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+      validate:
+        message: "Images must be pinned by digest (no mutable tags)"
+        cel:
+          expressions:
+            - expression: "has(object.spec.template.spec.containers) && object.spec.template.spec.containers.all(c, c.image.matches('^.+@sha256:[a-f0-9]{64}$'))"

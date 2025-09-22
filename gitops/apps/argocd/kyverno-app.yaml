@@ -1,0 +1,21 @@
+# Argo CD Application for Kyverno Policies
+# Deploys baseline security policies via GitOps
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kyverno-policies
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/j0c2/apqx-platform.git
+    targetRevision: main
+    path: gitops/apps/kyverno
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kyverno
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

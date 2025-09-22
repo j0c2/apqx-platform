@@ -9,6 +9,7 @@ namespace: sample-app
 resources:
 - ../../base
 - ingress.yaml
+- secret.yaml
 
 # Image configuration - digest will be updated by CI pipeline
 images:

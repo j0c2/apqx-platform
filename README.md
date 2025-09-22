@@ -123,18 +123,97 @@ kubectl get all -n sample-app
 
 ## Security Features
 
-- **Non-root containers** with read-only filesystems
-- **Security contexts** with seccomp profiles
-- **Resource limits** and health checks
-- **Service accounts** with minimal permissions
-- **Network policies** ready (implement as needed)
+### Container Security
+- **Non-root execution**: Runs as user/group 1001:1001
+- **Read-only filesystem**: `readOnlyRootFilesystem: true`
+- **Security contexts**: seccomp profiles, no privilege escalation
+- **Capabilities dropped**: All Linux capabilities removed
+- **Resource limits**: CPU/memory limits enforced
 
-## Scaling & Monitoring
+### RBAC (Role-Based Access Control)
+- **Dedicated ServiceAccount**: `sample-app` with token mounting disabled
+- **Minimal Role**: Empty permissions by default (least privilege)
+- **RoleBinding**: Links ServiceAccount to Role
+- **Namespace isolation**: Resources scoped to `sample-app` namespace
 
-- **Horizontal Pod Autoscaler**: 2-10 replicas based on CPU/memory
-- **Health checks**: Liveness, readiness, and startup probes
-- **Metrics**: Ready for Prometheus scraping
-- **Logging**: Structured JSON logs
+### Secrets Management
+⚠️ **Development Only**: The `secret.yaml` in dev overlay contains placeholder secrets
+
+**For Production, use one of:**
+- **SealedSecrets**: https://sealed-secrets.netlify.app/
+- **SOPS**: https://toolkit.fluxcd.io/guides/mozilla-sops/
+- **External Secrets Operator**: https://external-secrets.io/
+- **Kubernetes External Secrets**: https://github.com/external-secrets/kubernetes-external-secrets
+
+**Current Setup (DEV):**
+```yaml
+# gitops/apps/app/overlays/dev/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sample-app-secrets
+stringData:
+  DB_PASSWORD: "dev_password_replace_in_prod"  # Replace in prod!
+  API_KEY: "dev-api-key-12345"                  # Replace in prod!
+```
+
+### Image Security
+- **Immutable references**: Uses SHA256 digests, never `:latest`
+- **Distroless base**: Minimal attack surface
+- **Multi-stage builds**: Build dependencies not in runtime
+- **Container scanning**: Trivy scans in CI pipeline
+
+## SRE & Monitoring
+
+### Service Level Objectives (SLO)
+- **Target Availability**: 99.9% uptime
+- **Error Budget**: 0.1% (43.2 minutes downtime per month)
+- **Response Time**: < 500ms p95 for HTTP requests
+- **Recovery Time**: < 5 minutes from incident detection
+
+### Horizontal Pod Autoscaler (HPA)
+- **Scaling**: 1-3 replicas (SRE basics)
+- **CPU Target**: 70% utilization
+- **Scale Up**: +1 pod per minute when needed
+- **Scale Down**: -1 pod per 5 minutes (gradual)
+
+### Health Probes
+Configured for comprehensive health monitoring:
+
+**Liveness Probe** (`/health`):
+- Initial delay: 30s, Period: 30s, Timeout: 5s
+- Failure threshold: 3 (restart after 90s of failures)
+- Purpose: Detect and restart unhealthy containers
+
+**Readiness Probe** (`/ready`):
+- Initial delay: 5s, Period: 10s, Timeout: 5s  
+- Failure threshold: 3 (remove from service after 30s)
+- Purpose: Control traffic routing to healthy pods
+
+**Startup Probe** (`/health`):
+- Initial delay: 10s, Period: 5s, Timeout: 5s
+- Failure threshold: 30 (150s total startup time)
+- Purpose: Allow slow container initialization
+
+### Metrics Collection
+Ready for Prometheus monitoring:
+
+```yaml
+# Pod annotations for metrics scraping
+prometheus.io/scrape: "true"
+prometheus.io/port: "8080"
+prometheus.io/path: "/metrics"
+```
+
+**Available Endpoints**:
+- `/metrics` - Prometheus metrics (application metrics)
+- `/health` - Health check (liveness/startup)
+- `/ready` - Readiness check (traffic routing)
+
+### Logging
+- **Format**: Structured JSON logs
+- **Level**: Info (configurable via environment)
+- **Output**: stdout/stderr for container log collection
 
 ## Future Enhancements
 

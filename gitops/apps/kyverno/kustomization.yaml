@@ -1,0 +1,11 @@
+# Kustomization for Kyverno baseline security policies
+# Manages ClusterPolicy resources for security enforcement
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - policy-require-probes.yaml
+  - policy-require-resources.yaml
+  - policy-digest-only.yaml
+  - policy-require-sa.yaml

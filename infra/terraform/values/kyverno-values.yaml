@@ -1,0 +1,6 @@
+# Kyverno Helm values - minimal baseline configuration
+# Single replica and fail-closed webhooks for security
+
+replicaCount: 1
+webhooks:
+  failurePolicy: Fail

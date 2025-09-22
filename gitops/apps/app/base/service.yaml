@@ -10,6 +10,11 @@ metadata:
     app.kubernetes.io/name: sample-app
     app.kubernetes.io/component: service
     app.kubernetes.io/part-of: apqx-platform
+  annotations:
+    # SRE: Service monitoring annotations
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
 spec:
   type: ClusterIP
   ports:

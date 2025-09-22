@@ -11,7 +11,7 @@ metadata:
     app.kubernetes.io/component: server
     app.kubernetes.io/part-of: apqx-platform
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: sample-app
@@ -21,6 +21,11 @@ spec:
         app.kubernetes.io/name: sample-app
         app.kubernetes.io/component: server
         app.kubernetes.io/part-of: apqx-platform
+      annotations:
+        # SRE: Metrics collection annotations for Prometheus
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: sample-app
       securityContext:
@@ -42,6 +47,11 @@ spec:
           value: "8080"
         - name: GO_ENV
           value: "production"
+        # Example: Load secrets from Kubernetes Secret (dev overlay only)
+        envFrom:
+        - secretRef:
+            name: sample-app-secrets
+            optional: true
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true

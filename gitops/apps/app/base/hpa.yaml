@@ -1,5 +1,5 @@
-# Sample application HPA
-# HorizontalPodAutoscaler for automatic scaling based on CPU usage
+# Sample application HPA - SRE Basics
+# HorizontalPodAutoscaler with minimal scaling for SRE fundamentals
 
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -10,13 +10,18 @@ metadata:
     app.kubernetes.io/name: sample-app
     app.kubernetes.io/component: hpa
     app.kubernetes.io/part-of: apqx-platform
+  annotations:
+    # SRE: HPA configuration for basic scaling
+    sre.io/scaling-policy: "cpu-based"
+    sre.io/target-availability: "99.9%"
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
     name: sample-app
-  minReplicas: 2
-  maxReplicas: 10
+  # SRE Basics: Minimal scaling 1-3 replicas
+  minReplicas: 1
+  maxReplicas: 3
   metrics:
   - type: Resource
     resource:
@@ -24,25 +29,16 @@ spec:
       target:
         type: Utilization
         averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
   behavior:
     scaleUp:
       stabilizationWindowSeconds: 60
       policies:
-      - type: Percent
-        value: 100
-        periodSeconds: 15
       - type: Pods
-        value: 2
+        value: 1
         periodSeconds: 60
     scaleDown:
       stabilizationWindowSeconds: 300
       policies:
-      - type: Percent
-        value: 50
-        periodSeconds: 60
+      - type: Pods
+        value: 1
+        periodSeconds: 300

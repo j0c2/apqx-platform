@@ -1,0 +1,19 @@
+# Role for sample-app with minimal required permissions
+# Follows principle of least privilege
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sample-app
+  namespace: sample-app
+  labels:
+    app.kubernetes.io/name: sample-app
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/part-of: apqx-platform
+rules: []
+# Minimal permissions - only what the app needs
+# If the app doesn't need Kubernetes API access, this can be empty
+# Example: if app needs to read ConfigMaps, add:
+# - apiGroups: [""]
+#   resources: ["configmaps"]
+#   verbs: ["get", "list"]
