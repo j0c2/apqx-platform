@@ -2,7 +2,7 @@
 # Builds minimal, secure container image for apqx-platform sample app
 
 # Build stage
-FROM golang:1.21-alpine@sha256:96634e55b363cb93d39f78fb18aa64da5a281e9f85560c6d68330c46aaa1b2e4 AS builder
+FROM golang:1.21-alpine AS builder
 
 # Install dependencies and create non-root user in single layer
 WORKDIR /build
@@ -25,7 +25,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o main .
 
 # Production stage - minimal distroless image
-FROM gcr.io/distroless/static-debian11@sha256:ce46866b3a5170db3e11853eee6a96b8b2e934b0b4c23076e70b3d35e8efcf0b
+FROM gcr.io/distroless/static-debian11
 
 # Security: Use non-root user
 USER 1001:1001

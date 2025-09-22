@@ -34,8 +34,9 @@ jobs:
   update-digest:
     name: Update Container Image Digests
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    
+    if: >
+      github.event.workflow_run.conclusion == 'success' ||
+      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     strategy:
       matrix:
         component:
@@ -97,10 +98,10 @@ jobs:
               TAG="v0.24.0"
               ;;
           esac
-          
+
           echo "IMAGE=${IMAGE}" >> $GITHUB_OUTPUT
           echo "TAG=${TAG}" >> $GITHUB_OUTPUT
-          
+
           # Get the digest for the specified tag
           DIGEST=$(crane digest "${IMAGE}:${TAG}")
           echo "DIGEST=${DIGEST}" >> $GITHUB_OUTPUT
@@ -113,17 +114,17 @@ jobs:
           IMAGE="${{ steps.digest.outputs.IMAGE }}"
           TAG="${{ steps.digest.outputs.TAG }}"
           DIGEST="${{ steps.digest.outputs.DIGEST }}"
-          
+
           for file in ${{ join(matrix.component.files, ' ') }}; do
             FILE_PATH="${{ matrix.component.path }}/${file}"
-            
+
             if [[ ! -f "$FILE_PATH" ]]; then
               echo "File $FILE_PATH not found, skipping..."
               continue
             fi
-            
+
             echo "Processing $FILE_PATH..."
-            
+
             case "$file" in
               *.yaml)
                 # Update Kubernetes YAML files
@@ -131,12 +132,12 @@ jobs:
                   # Update image references with digests
                   sed -i.bak "s|${IMAGE}@sha256:[a-f0-9]*|${IMAGE}@${DIGEST}|g" "$FILE_PATH"
                   sed -i.bak "s|${IMAGE}:${TAG}|${IMAGE}@${DIGEST}|g" "$FILE_PATH"
-                  
+
                   # Update Kustomization newTag references
                   if [[ "$file" == "kustomization.yaml" ]]; then
                     sed -i.bak "s|newTag: .*|newTag: \"${DIGEST}\"|" "$FILE_PATH"
                   fi
-                  
+
                   # Check if file was actually modified
                   if ! cmp -s "$FILE_PATH" "$FILE_PATH.bak"; then
                     UPDATED=true
@@ -151,7 +152,7 @@ jobs:
                   # Update Terraform image tags with digests
                   sed -i.bak "s|tag.*=.*\"${TAG}@sha256:[a-f0-9]*\"|tag = \"${TAG}@${DIGEST}\"|g" "$FILE_PATH"
                   sed -i.bak "s|tag.*=.*\"${TAG}\"|tag = \"${TAG}@${DIGEST}\"|g" "$FILE_PATH"
-                  
+
                   # Check if file was actually modified
                   if ! cmp -s "$FILE_PATH" "$FILE_PATH.bak"; then
                     UPDATED=true
@@ -162,7 +163,7 @@ jobs:
                 ;;
             esac
           done
-          
+
           echo "UPDATED=${UPDATED}" >> $GITHUB_OUTPUT
 
       - name: Commit changes
@@ -170,19 +171,19 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          
+
           git add ${{ matrix.component.path }}
-          
+
           SHORT_DIGEST="${{ steps.digest.outputs.DIGEST }}"
           SHORT_DIGEST="${SHORT_DIGEST:7:12}"  # Extract first 12 chars after 'sha256:'
-          
+
           git commit -m "chore: update ${{ matrix.component.name }} image digest to ${SHORT_DIGEST}
 
           Updated ${{ matrix.component.name }} image references:
           - Image: ${{ steps.digest.outputs.IMAGE }}
           - Tag: ${{ steps.digest.outputs.TAG }}
           - Digest: ${{ steps.digest.outputs.DIGEST }}
-          
+
           Files updated:
           $(echo '${{ join(matrix.component.files, ', ') }}' | sed 's/,/\n-/g' | sed 's/^/- /')"
 
@@ -206,7 +207,7 @@ jobs:
         run: |
           # Install yamllint if not available
           pip install yamllint
-          
+
           # Validate all YAML files in GitOps directory
           find gitops/ -name "*.yaml" -o -name "*.yml" | xargs yamllint -d relaxed
 
