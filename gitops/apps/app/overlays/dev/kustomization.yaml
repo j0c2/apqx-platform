@@ -15,7 +15,7 @@ images:
 - digest: sha256:placeholder
   name: ghcr.io/example/sample-app
   newName: ghcr.io/example/sample-app
-- digest: sha256:9ec7c4b021bc81f566d6c67fc45c8c576f2504c0528efd6c19ad8fe1217d9367
+- digest: sha256:41333672d0b847a1e935d02b026d52f71c202a61543593037153a7aa6e02eab8
   name: ghcr.io/j0c2/apqx-platform/sample-app
 
 labels:
