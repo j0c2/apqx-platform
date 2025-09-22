@@ -230,10 +230,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Set up Kustomize
-        uses: imranismail/setup-kustomize@v3
-        with:
-          kustomize-version: v5.4.2
+      - name: Install kustomize
+        run: |
+          GO111MODULE=on go install sigs.k8s.io/kustomize/kustomize/v5@v5.4.2
+          echo "$HOME/go/bin" >> $GITHUB_PATH
 
       - name: Update image digest in overlay
         working-directory: gitops/apps/app/overlays/dev
@@ -246,7 +246,7 @@ jobs:
             echo "Unexpected digest format: $IMAGE_DIGEST" && exit 1
           fi
           # Set the image to the exact digest using kustomize
-          kustomize edit set image "${IMAGE_NAME}@${IMAGE_DIGEST}"
+          "$HOME"/go/bin/kustomize edit set image "${IMAGE_NAME}@${IMAGE_DIGEST}"
 
       - name: Commit and push changes
         run: |
