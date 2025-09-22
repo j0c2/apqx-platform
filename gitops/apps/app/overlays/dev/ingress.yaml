@@ -1,5 +1,5 @@
-# Dev environment ingress
-# Exposes the sample app via Traefik with sslip.io DNS
+# Dev environment ingress with TLS
+# Exposes the sample app via Traefik with sslip.io DNS and self-signed TLS
 
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -19,10 +19,10 @@ spec:
   ingressClassName: traefik
   tls:
   - hosts:
-    - app.*************sslip.io
+    - app.*********sslip.io
     secretName: sample-app-tls
   rules:
-  - host: app.192.168.1.89.sslip.io
+  - host: app.*********sslip.io
     http:
       paths:
       - path: /

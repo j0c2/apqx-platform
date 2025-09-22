@@ -12,4 +12,4 @@ spec:
     name: selfsigned-cluster-issuer
     kind: ClusterIssuer
   dnsNames:
-    - app.*************sslip.io
+    - app.*********sslip.io
