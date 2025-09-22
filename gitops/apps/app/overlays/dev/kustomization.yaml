@@ -1,13 +1,21 @@
+# Dev overlay for sample application
+# Customizations specific to the development environment
+
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+namespace: sample-app
+
 resources:
 - ../../base
+- ingress.yaml
 
-    # newTag will be replaced by CI with the immutable digest (e.g., sha256:abc...)
+# Image configuration - digest will be updated by CI pipeline
 images:
 - name: ghcr.io/example/sample-app
   newName: ghcr.io/example/sample-app
-  newTag: sha256:PLACEHOLDER
-- digest: sha256:fef9dd7a04adc03be03c47f566ac7f8e1b01e31af551469123d3a99de02c3d6a
-  name: ghcr.io/j0c2/apqx-platform/sample-app
+  digest: sha256:placeholder
+
+labels:
+- pairs:
+    environment: dev

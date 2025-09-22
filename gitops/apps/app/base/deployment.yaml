@@ -5,10 +5,11 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: sample-app
+  namespace: sample-app
   labels:
     app.kubernetes.io/name: sample-app
+    app.kubernetes.io/component: server
     app.kubernetes.io/part-of: apqx-platform
-    app.kubernetes.io/managed-by: argocd
 spec:
   replicas: 2
   selector:
@@ -18,15 +19,38 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: sample-app
+        app.kubernetes.io/component: server
         app.kubernetes.io/part-of: apqx-platform
     spec:
+      serviceAccountName: sample-app
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: sample-app
-        image: ghcr.io/j0c2/apqx-platform/sample-app@sha256:c6dd9ced0f39574019121caa889cb0e3f33707f957f1cd50ade4c2255abf8799
+        image: ghcr.io/example/sample-app@sha256:placeholder
         ports:
-        - containerPort: 8080
-          name: http
+        - name: http
+          containerPort: 8080
           protocol: TCP
+        env:
+        - name: PORT
+          value: "8080"
+        - name: GO_ENV
+          value: "production"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+          capabilities:
+            drop:
+            - ALL
         resources:
           requests:
             cpu: 100m
@@ -38,20 +62,30 @@ spec:
           httpGet:
             path: /health
             port: http
+            scheme: HTTP
           initialDelaySeconds: 30
-          periodSeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /ready
             port: http
+            scheme: HTTP
           initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 10
           periodSeconds: 5
-        securityContext:
-          allowPrivilegeEscalation: false
-          runAsNonRoot: true
-          runAsUser: 1001
-          capabilities:
-            drop:
-            - ALL
-      securityContext:
-        fsGroup: 2000
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 30
+      terminationGracePeriodSeconds: 30
