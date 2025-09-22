@@ -59,10 +59,12 @@ func main() {
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"status": "healthy",
 		"time":   time.Now().Format(time.RFC3339),
-	})
+	}); err != nil {
+		log.Printf("Error encoding health response: %v", err)
+	}
 }
 
 // readyHandler returns the readiness status of the application
@@ -70,10 +72,12 @@ func readyHandler(w http.ResponseWriter, r *http.Request) {
 	// Add any readiness checks here (database connectivity, etc.)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"status": "ready",
 		"time":   time.Now().Format(time.RFC3339),
-	})
+	}); err != nil {
+		log.Printf("Error encoding ready response: %v", err)
+	}
 }
 
 // homeHandler serves the main application page
@@ -164,7 +168,10 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 </html>`
 
 	uptime := time.Since(startTime).Round(time.Second).String()
-	fmt.Fprintf(w, html, appName, version, startTime.Format(time.RFC3339), uptime)
+	if _, err := fmt.Fprintf(w, html, appName, version, startTime.Format(time.RFC3339), uptime); err != nil {
+		log.Printf("Error writing home page response: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 // infoHandler returns detailed application information
@@ -180,7 +187,9 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(info)
+	if err := json.NewEncoder(w).Encode(info); err != nil {
+		log.Printf("Error encoding info response: %v", err)
+	}
 }
 
 // statusHandler returns API status information
@@ -208,5 +217,7 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(status)
+	if err := json.NewEncoder(w).Encode(status); err != nil {
+		log.Printf("Error encoding status response: %v", err)
+	}
 }

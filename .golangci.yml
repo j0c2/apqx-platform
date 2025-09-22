@@ -1,0 +1,77 @@
+# GolangCI-Lint configuration for apqx-platform
+# Configuration for Go code linting and quality checks
+
+run:
+  timeout: 5m
+  go: '1.21'
+  modules-download-mode: readonly
+  skip-files:
+    - ".*_test.go"
+  skip-dirs:
+    - vendor
+    - .git
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - typecheck
+    - unused
+    - gofmt
+    - goimports
+    - gosec
+    - misspell
+    - unparam
+    - unconvert
+    - nakedret
+    - prealloc
+    - scopelint
+    - gocritic
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: false
+  govet:
+    check-shadowing: true
+  gofmt:
+    simplify: true
+  goimports:
+    local-prefixes: github.com/example/apqx-platform
+  gosec:
+    severity: medium
+    confidence: medium
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+  nakedret:
+    max-func-lines: 30
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 50
+  max-same-issues: 10
+  exclude-rules:
+    # Exclude error check for fmt.Fprintf in HTML template
+    - path: main.go
+      linters:
+        - errcheck
+      text: "Error return value of `fmt.Fprintf` is not checked"
+    
+    # Exclude for test files
+    - path: _test.go
+      linters:
+        - gosec
+        - errcheck
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
