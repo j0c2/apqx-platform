@@ -1,0 +1,5 @@
+# cert-manager Helm values - minimal configuration for TLS
+# Install CRDs and single replica for simplicity
+
+installCRDs: true
+replicaCount: 1

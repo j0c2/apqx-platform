@@ -12,10 +12,15 @@ metadata:
     app.kubernetes.io/part-of: apqx-platform
     environment: dev
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
     traefik.ingress.kubernetes.io/router.middlewares: default-headers@kubernetescrd
+    traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
   ingressClassName: traefik
+  tls:
+  - hosts:
+    - app.*************sslip.io
+    secretName: sample-app-tls
   rules:
   - host: app.192.168.1.89.sslip.io
     http:

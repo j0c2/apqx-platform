@@ -14,6 +14,11 @@ spec:
           - resources:
               kinds:
                 - Deployment
+              namespaces:
+                - "!kube-system"
+                - "!cert-manager"
+                - "!kyverno"
+                - "!argocd"
       validate:
         message: "Use a dedicated ServiceAccount (not default)"
         deny:

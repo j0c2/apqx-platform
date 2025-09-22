@@ -10,6 +10,8 @@ resources:
 - ../../base
 - ingress.yaml
 - secret.yaml
+- clusterissuer-selfsigned.yaml
+- certificate.yaml
 
 # Image configuration - digest will be updated by CI pipeline
 images:
