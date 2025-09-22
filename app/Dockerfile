@@ -4,14 +4,10 @@
 # Build stage
 FROM golang:1.21-alpine@sha256:96634e55b363cb93d39f78fb18aa64da5a281e9f85560c6d68330c46aaa1b2e4 AS builder
 
-# Security: Create non-root user
-RUN adduser -D -s /bin/sh -u 1001 appuser
-
-# Install ca-certificates and git for dependencies
-RUN apk --no-cache add ca-certificates git
-
-# Set working directory
+# Install dependencies and create non-root user in single layer
 WORKDIR /build
+RUN apk --no-cache add ca-certificates git && \
+    adduser -D -s /bin/sh -u 1001 appuser
 
 # Copy go mod files first for better caching
 COPY go.mod go.sum ./

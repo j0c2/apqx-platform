@@ -1,0 +1,14 @@
+# Hadolint configuration for Dockerfile linting
+# Configures Docker best practices checking
+
+ignored:
+  - DL3059  # Multiple consecutive RUN instructions - acceptable for clarity
+  - DL3018  # Pin versions in apk add - we use --update for security patches
+
+trustedRegistries:
+  - docker.io
+  - gcr.io
+  - ghcr.io
+  - quay.io
+
+failure-threshold: warning
