@@ -25,7 +25,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o main .
 
 # Production stage - minimal distroless image
-FROM gcr.io/distroless/static-debian11
+FROM gcr.io/distroless/static-debian11:latest
 
 # Security: Use non-root user
 USER 1001:1001

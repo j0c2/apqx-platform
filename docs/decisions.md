@@ -6,7 +6,7 @@ Architectural decisions and technology choices for the On-Prem GitOps App Platfo
 
 ### k3d (Kubernetes Distribution)
 **Decision**: Use k3d for local Kubernetes clusters
-**Rationale**: 
+**Rationale**:
 - **Reproducibility**: Consistent dev/test environments with minimal resource usage
 - **Speed**: Fast cluster creation/destruction for iterative development
 - **GitOps Quality**: Full Kubernetes API compatibility for realistic testing

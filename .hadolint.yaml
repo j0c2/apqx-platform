@@ -4,6 +4,7 @@
 ignored:
   - DL3059  # Multiple consecutive RUN instructions - acceptable for clarity
   - DL3018  # Pin versions in apk add - we use --update for security patches
+  - DL3006  # Always tag the version of an image - distroless uses rolling latest
 
 trustedRegistries:
   - docker.io

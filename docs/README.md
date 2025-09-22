@@ -61,6 +61,16 @@ The following placeholders need to be configured:
 | `<LOCAL-IP>` | Your machine's local IP address | Auto-detected during deployment |
 | `<tailnet>` | Your Tailscale tailnet name | Auto-detected from Tailscale status |
 
+## GitHub Actions Setup
+
+For the CI/CD workflows to work properly, ensure your repository has:
+
+1. **Actions permissions**: Go to Settings → Actions → General → Workflow permissions
+   - Select "Read and write permissions"
+   - Check "Allow GitHub Actions to create and approve pull requests"
+
+2. **Container registry access**: GitHub Container Registry (GHCR) access is automatic
+
 ## Cleanup
 
 To tear down the platform:
