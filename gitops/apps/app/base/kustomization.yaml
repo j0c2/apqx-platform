@@ -15,4 +15,4 @@ commonLabels:
 
 images:
 - name: ghcr.io/example/sample-app
-  newTag: placeholder
+  newTag: "sha256:c6dd9ced0f39574019121caa889cb0e3f33707f957f1cd50ade4c2255abf8799"
