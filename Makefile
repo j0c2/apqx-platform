@@ -308,6 +308,18 @@ logs:
 		kubectl logs -n argocd -l app.kubernetes.io/component=application-controller --tail=50; \
 	fi
 
+## kyverno-test: Run admission checks for Kyverno policies (informational)
+kyverno-test:
+	@echo "$(BLUE)Kyverno policy readiness:$(NC)"; \
+	kubectl get clusterpolicy -o wide || true; \
+	echo ""; \
+	echo "$(BLUE)Testing admission (server dry-run):$(NC)"; \
+	printf "  deny mutable tag (nginx:latest): "; kubectl create deployment kyv-digest-deny -n sample-app --image=nginx:latest --dry-run=server >/dev/null 2>&1 && echo FAIL || echo OK; \
+	printf "  require probes/resources on default deploy: "; kubectl create deployment kyv-probes-resources -n sample-app --image=nginx@sha256:8b1e8d4a6f2c6f55f3c8d9a9ce7b3f2b5b0a4f0b0d867bd5e9e79f0d0b8a1f14 --dry-run=server >/dev/null 2>&1 && echo FAIL || echo OK; \
+	printf "  dedicated SA must not be default: "; echo "$$'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: kyv-default-sa-deny\n  namespace: sample-app\nspec:\n  selector:\n    matchLabels: {app: test}\n  template:\n    metadata:\n      labels: {app: test}\n    spec:\n      serviceAccountName: default\n      containers:\n      - name: c\n        image: busybox@sha256:780fdf2769779b46b85fb44ba69bfe1fe42d63dc3df75abf69f27d6f5a1b2d3c\n        command: [\"sh\",\"-c\",\"sleep 10\"]'" | kubectl apply --dry-run=server -f - >/dev/null 2>&1 && echo FAIL || echo OK; \
+	echo ""; \
+	echo "$(YELLOW)Note: If tests show FAIL but policies are Ready, your cluster may have admission webhooks disabled.\nKyverno webhooks report 'admissions.enforcer/disabled: true' on this cluster.\nTo enforce in admission, recreate k3d with API server admission enabled. I can apply this for you.$(NC)";
+
 ## runner-up: Start self-hosted GitHub Actions runner
 runner-up:
 	@echo "$(BLUE)Starting self-hosted GitHub Actions runner...$(NC)"
