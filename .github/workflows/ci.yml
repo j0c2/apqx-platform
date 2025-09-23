@@ -203,27 +203,15 @@ jobs:
           name: sbom
           path: sbom.spdx.json
 
-  build_act:
-    name: Build (act)
-    runs-on: ubuntu-latest
-    needs: [test, lint]
-    if: env.ACT == 'true'
-    outputs:
-      digest: ${{ steps.set.outputs.digest }}
-      image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-    steps:
-      - name: Set empty outputs for act (no push)
-        id: set
-        run: |
-          echo "digest=" >> $GITHUB_OUTPUT
-
+  scan:
+    name: Security Scan (Image)
   scan:
     name: Security Scan (Image)
     runs-on: ubuntu-latest
-    needs: [build, build_act]
+    needs: [build]
     if: >
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      (needs.build.result == 'success' || needs.build_act.result == 'success') &&
+      needs.build.result == 'success' &&
       env.ACT != 'true'
     continue-on-error: true
     steps:
@@ -231,7 +219,7 @@ jobs:
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
         with:
-          image-ref: ${{ (needs.build.outputs.image || needs.build_act.outputs.image) }}@${{ (needs.build.outputs.digest || needs.build_act.outputs.digest) }}
+          image-ref: ${{ needs.build.outputs.image }}@${{ needs.build.outputs.digest }}
           format: 'sarif'
           output: 'trivy-image-results.sarif'
 
@@ -244,10 +232,10 @@ jobs:
   deploy:
     name: Update GitOps
     runs-on: ubuntu-latest
-    needs: [build, build_act]
+    needs: [build]
     if: >
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      (needs.build.result == 'success' || needs.build_act.result == 'success') &&
+      needs.build.result == 'success' &&
       env.ACT != 'true'
     steps:
       - name: Checkout code
@@ -263,7 +251,7 @@ jobs:
       - name: Update image digest in overlay
         working-directory: gitops/apps/app/overlays/dev
         run: |
-          kustomize edit set image "ghcr.io/${{ github.repository }}/sample-app@${{ needs.build.outputs.digest || needs.build_act.outputs.digest }}"
+          kustomize edit set image "ghcr.io/${{ github.repository }}/sample-app@${{ needs.build.outputs.digest }}"
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add kustomization.yaml
