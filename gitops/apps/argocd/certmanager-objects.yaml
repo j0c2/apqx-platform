@@ -1,0 +1,24 @@
+# Argo CD Application for cert-manager Objects
+# Manages ClusterIssuer and Certificate resources via GitOps
+# (cert-manager controller itself is installed via Terraform Helm)
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: certmanager-objects
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/j0c2/apqx-platform.git
+    targetRevision: main
+    path: gitops/apps/app/overlays/dev
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sample-app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

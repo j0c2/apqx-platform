@@ -1,0 +1,11 @@
+# Tailscale OAuth Configuration Example
+# Copy this file to terraform.tfvars and fill in your actual values
+# NEVER commit terraform.tfvars to git - it contains sensitive credentials!
+
+# Your Tailscale tailnet name (usually your email domain)
+tailscale_tailnet = "yourname.gmail.com"
+
+# OAuth client credentials from Tailscale Admin Console
+# Get these from: https://login.tailscale.com/admin/settings/oauth
+tailscale_oauth_client_id     = "kWJHhTt65511CNTRL"
+tailscale_oauth_client_secret = "tskey-client-kWJHhTt65511CNTRL-ozipFG31fQLew4ZYjJqhQLoam5gWKtsz"

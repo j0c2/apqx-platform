@@ -1,0 +1,14 @@
+# Tailscale Operator Helm values - minimal configuration
+# OAuth authentication for MagicDNS service exposure
+
+oauth:
+  clientId:   "${client_id}"
+  clientSecret: "${client_secret}"
+  # Operator will authenticate via OAuth client credentials
+
+operatorConfig:
+  defaultProxyClass: ""
+  # Disable operator tags to avoid ACL configuration requirements
+  operatorTags: ""
+
+# keep defaults minimal; we'll use Service annotations to expose the app

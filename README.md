@@ -215,30 +215,97 @@ prometheus.io/path: "/metrics"
 - **Level**: Info (configurable via environment)
 - **Output**: stdout/stderr for container log collection
 
-## Future Enhancements
+## Platform Verification
 
-### Tailscale Integration (Recommended)
+### Access URLs to Verify
 
-For secure remote access:
-
+**HTTP Access (sslip.io)**:
 ```bash
-# Install Tailscale Operator (future work)
-kubectl apply -f gitops/apps/tailscale-operator/
-
-# Benefits:
-# - Secure VPN access to your cluster
-# - MagicDNS: https://app.tail-net.ts.net
-# - No port forwarding needed
-# - Works from anywhere
+# Find your local IP and access the app
+LOCAL_IP=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head -1)
+echo "HTTP URL: http://app.$LOCAL_IP.sslip.io"
+curl http://app.$LOCAL_IP.sslip.io
 ```
 
-### Additional Components
+**HTTPS Access (self-signed TLS)**:
+```bash
+# Via k3d LoadBalancer (accepts any hostname)
+curl -k https://localhost
 
-- **Monitoring**: Prometheus + Grafana stack
-- **Logging**: ELK or Loki stack  
-- **Security**: Kyverno policies, Falco
-- **Secrets**: Sealed Secrets or External Secrets
-- **Backup**: Velero for cluster backups
+# Via sslip.io with certificate (if properly configured)
+curl -k https://app.$LOCAL_IP.sslip.io
+```
+
+**Tailscale MagicDNS Access** (requires OAuth setup):
+```bash
+# After configuring Tailscale OAuth credentials:
+# https://app-onprem.<tailnet>.ts.net
+# Example: https://app-onprem.yourname-gmail.ts.net
+```
+
+### Security Policy Verification
+
+**Test Kyverno policy enforcement**:
+```bash
+# Try deploying invalid image (should fail)
+kubectl create deployment test-bad --image=nginx:latest --dry-run=server
+# Expected: Admission denied due to image digest policy
+
+# Try deploying without probes (should fail)
+kubectl run test-no-probes --image=nginx@sha256:abc123... --dry-run=server
+# Expected: Admission denied due to missing probes policy
+
+# Check active policies
+kubectl get clusterpolicies
+```
+
+### Certificate Verification
+
+**Check cert-manager status**:
+```bash
+# Verify ClusterIssuer and Certificate
+kubectl get clusterissuers
+kubectl get certificates -n sample-app
+kubectl get secret sample-app-tls -n sample-app
+
+# Check certificate details
+kubectl describe certificate sample-app-cert -n sample-app
+```
+
+### Platform Architecture Choices
+
+**Why these specific choices:**
+
+- **Kyverno baseline policies**: Enforces security without operational complexity
+  - Image digest pinning prevents supply chain attacks
+  - Health probes ensure reliability and observability
+  - Resource limits prevent resource exhaustion
+  - Dedicated ServiceAccounts follow least privilege
+
+- **Self-signed TLS via cert-manager**: 
+  - Provides TLS encryption for development environments
+  - Automated certificate lifecycle management
+  - Foundation for production ACME certificates
+
+- **Tailscale via Service annotation**:
+  - Zero-config VPN access to cluster services
+  - MagicDNS provides friendly hostnames
+  - Secure remote access without public exposure
+  - Simple Service annotation vs complex ingress configuration
+
+- **GitOps separation**: 
+  - Controllers (Kyverno, cert-manager, Tailscale) via Terraform Helm for bootstrap
+  - Application configs (policies, certificates, manifests) via Argo CD for lifecycle
+  - Clear separation of infrastructure vs application concerns
+
+## Additional Platform Components
+
+**Available for extension**:
+- **Monitoring**: Prometheus + Grafana stack integration
+- **Logging**: ELK or Loki stack integration
+- **Advanced Security**: Falco runtime security, OPA Gatekeeper
+- **Secrets Management**: Sealed Secrets or External Secrets Operator
+- **Backup & DR**: Velero for cluster and application backups
 
 ## Troubleshooting
 
