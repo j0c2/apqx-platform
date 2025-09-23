@@ -22,6 +22,35 @@ open http://app.$(ifconfig | grep "inet " | grep -v ********* | awk '{print $2}'
 make destroy
 ```
 
+## 🚀 Quick Access Routes (TLS-Enabled)
+
+**Primary GitOps Platform URLs (HTTPS):**
+
+- **ArgoCD UI**: `https://argocd.172.19.0.3sslip.io`
+  - Username: `admin`
+  - Password: `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d`
+
+- **Argo Rollouts Dashboard**: `https://rollouts.172.19.0.3sslip.io/rollouts/`
+  - View canary deployments and traffic management
+
+- **Sample App**: `https://app.172.19.0.3sslip.io`
+  - JSON API endpoints with build SHA tracking
+
+**Local Port Forward (Alternative Access):**
+```bash
+# Forward Traefik ports to localhost
+kubectl port-forward -n kube-system svc/traefik 8080:80 8443:443
+
+# Then access via:
+# - http://localhost:8080
+# - https://localhost:8443 (self-signed cert)
+```
+
+**TLS Certificate Notes:**
+- All services have TLS enabled via cert-manager
+- Self-signed certificates for sslip.io domains
+- Browser will show security warning (accept to proceed)
+
 ## 🏗️ Architecture
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design.

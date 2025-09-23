@@ -1,6 +1,3 @@
-# Dev environment ingress with TLS
-# Exposes the sample app via Traefik with sslip.io DNS and self-signed TLS
-
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -10,14 +7,17 @@ metadata:
     app.kubernetes.io/name: sample-app
     app.kubernetes.io/component: ingress
     app.kubernetes.io/part-of: apqx-platform
-    environment: dev
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
   ingressClassName: traefik
+  tls:
+  - hosts:
+    - app.172.19.0.3.sslip.io
+    secretName: sample-app-sslip-tls
   rules:
-  - host: app.172.21.0.2.sslip.io
+  - host: app.172.19.0.3.sslip.io
     http:
       paths:
       - path: /

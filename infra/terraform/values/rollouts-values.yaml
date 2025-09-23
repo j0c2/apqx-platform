@@ -2,7 +2,10 @@
 # Progressive delivery controller settings
 
 dashboard:
-  enabled: false
+  enabled: true
+  service:
+    type: ClusterIP
+    port: 3100
 
 installCRDs: true
 

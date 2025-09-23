@@ -1,29 +1,28 @@
-# Dev environment ingress with TLS
-# Exposes the sample app via Traefik with sslip.io DNS and self-signed TLS
+# Argo Rollouts Dashboard Traefik Ingress
+# Exposes Argo Rollouts UI via Traefik with sslip.io DNS
 
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: sample-app
-  namespace: sample-app
+  name: argo-rollouts-dashboard
+  namespace: argo-rollouts
   labels:
-    app.kubernetes.io/name: sample-app
-    app.kubernetes.io/component: ingress
+    app.kubernetes.io/name: argo-rollouts-dashboard
     app.kubernetes.io/part-of: apqx-platform
-    environment: dev
+    app.kubernetes.io/component: ingress
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
   ingressClassName: traefik
   rules:
-  - host: app.172.21.0.2.sslip.io
+  - host: rollouts.172.21.0.2.sslip.io
     http:
       paths:
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: sample-app-stable
+            name: argo-rollouts-dashboard
             port:
-              number: 80
+              number: 3100

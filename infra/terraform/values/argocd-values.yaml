@@ -3,3 +3,11 @@ configs:
     server.insecure: true
 dex:
   enabled: false
+
+server:
+  ingress:
+    enabled: false  # We'll manage ingress via GitOps
+  service:
+    type: ClusterIP
+  extraArgs:
+    - --insecure

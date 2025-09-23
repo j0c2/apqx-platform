@@ -1,6 +1,6 @@
 # Automation targets for deploying and managing the On-Prem GitOps App Platform
 
-.PHONY: help up destroy validate plan diff sync status clean dev test lint security bootstrap check-deps install-deps runner-config runner-up runner-down runner-status
+.PHONY: help up destroy validate plan diff sync status clean dev test lint security bootstrap check-deps install-deps runner-config runner-up runner-down runner-status argocd rollouts app
 
 # Default target
 .DEFAULT_GOAL := help
@@ -146,9 +146,16 @@ status:
 		echo ""; \
 	fi
 	@echo "$(GREEN)Service URLs:$(NC)"
-	@terraform -chdir=$(TERRAFORM_DIR) output app_url_local 2>/dev/null || echo "$(YELLOW)Local URL not available$(NC)"
-	@echo "$(YELLOW)Argo CD: http://localhost (configure ingress)$(NC)"
-	@echo "$(YELLOW)Tailscale URLs: Check Argo CD UI for MagicDNS URLs$(NC)"
+	@TRAEFIK_IP=$$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "localhost"); \
+	echo "🚀 Sample App: https://app.$$TRAEFIK_IP.sslip.io"; \
+	echo "🎛️  ArgoCD: https://argocd.$$TRAEFIK_IP.sslip.io"; \
+	echo "📊 Argo Rollouts: https://rollouts.$$TRAEFIK_IP.sslip.io"; \
+	echo "🔒 Sample App (Tailscale): https://app-onprem-1.tail13bd49.ts.net"; \
+	echo ""; \
+	echo "$(YELLOW)💡 Alternative access (localhost):$(NC)"; \
+	echo "   https://app.localhost"; \
+	echo "   https://argocd.localhost"; \
+	echo "   https://rollouts.localhost"
 
 ## dev: Start local development environment
 dev:
@@ -272,6 +279,48 @@ runner-status:
 	@if pgrep -f "Runner.Listener" > /dev/null; then \
 		echo "$(GREEN)✓ Runner Process: Running (PID: $$(pgrep -f 'Runner.Listener'))$(NC)"; \
 		echo "$(GREEN)Runner Logs: runner/runner.log$(NC)"; \
-	else \
+	@else \
 		echo "$(RED)✗ Runner Process: Not running$(NC)"; \
+	fi
+
+## argocd: Open ArgoCD UI in browser
+argocd:
+	@echo "$(BLUE)Opening ArgoCD UI...$(NC)"
+	@TRAEFIK_IP=$$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null); \
+	if [ -n "$$TRAEFIK_IP" ]; then \
+		echo "$(GREEN)🎛️  ArgoCD URL: https://argocd.$$TRAEFIK_IP.sslip.io$(NC)"; \
+		open "https://argocd.$$TRAEFIK_IP.sslip.io" || true; \
+	else \
+		echo "$(YELLOW)Traefik IP not available, using localhost$(NC)"; \
+		echo "$(GREEN)🎛️  ArgoCD URL: https://argocd.localhost$(NC)"; \
+		open "https://argocd.localhost" || true; \
+	fi
+	@echo "$(YELLOW)Username: admin$(NC)"
+	@ARGO_PASS=$$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' 2>/dev/null | base64 -d 2>/dev/null || echo "password-not-found"); \
+	echo "$(YELLOW)Password: $$ARGO_PASS$(NC)"
+
+## rollouts: Open Argo Rollouts UI in browser
+rollouts:
+	@echo "$(BLUE)Opening Argo Rollouts UI...$(NC)"
+	@TRAEFIK_IP=$$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null); \
+	if [ -n "$$TRAEFIK_IP" ]; then \
+		echo "$(GREEN)📊 Rollouts URL: https://rollouts.$$TRAEFIK_IP.sslip.io$(NC)"; \
+		open "https://rollouts.$$TRAEFIK_IP.sslip.io" || true; \
+	else \
+		echo "$(YELLOW)Traefik IP not available, using localhost$(NC)"; \
+		echo "$(GREEN)📊 Rollouts URL: https://rollouts.localhost$(NC)"; \
+		open "https://rollouts.localhost" || true; \
+	fi
+
+## app: Open Sample App in browser
+app:
+	@echo "$(BLUE)Opening Sample App...$(NC)"
+	@TRAEFIK_IP=$$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null); \
+	if [ -n "$$TRAEFIK_IP" ]; then \
+		echo "$(GREEN)🚀 App URL: https://app.$$TRAEFIK_IP.sslip.io$(NC)"; \
+		open "https://app.$$TRAEFIK_IP.sslip.io" || true; \
+	else \
+		echo "$(YELLOW)Traefik IP not available, using localhost$(NC)"; \
+		echo "$(GREEN)🚀 App URL: https://app.localhost$(NC)"; \
+		open "https://app.localhost" || true; \
 	fi
