@@ -8,6 +8,9 @@ namespace: sample-app
 
 resources:
 - ../../base
+- service-stable.yaml
+- service-canary.yaml
+- rollout.yaml
 - ingress.yaml
 - secret.yaml
 - clusterissuer-selfsigned.yaml

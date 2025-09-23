@@ -27,11 +27,11 @@ spec:
       paths:
       - path: /
         pathType: Prefix
-        backend:
-          service:
-            name: sample-app
-            port:
-              name: http
+            backend:
+              service:
+                name: sample-app-stable
+                port:
+                  number: 80
   # Fallback rule for direct access via LoadBalancer
   - http:
       paths:

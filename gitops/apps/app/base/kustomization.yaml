@@ -6,12 +6,9 @@ kind: Kustomization
 
 resources:
 - namespace.yaml
-- deployment.yaml
 - service.yaml
 - pdb.yaml
 - rolebinding.yaml
-- deployment.yaml
-- service.yaml
 - hpa.yaml
 
 labels:

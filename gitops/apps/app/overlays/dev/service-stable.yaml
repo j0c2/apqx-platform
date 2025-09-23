@@ -1,0 +1,26 @@
+# Stable service for production traffic
+# Routes traffic to stable version during canary deployments
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-app-stable
+  namespace: sample-app
+  labels:
+    app.kubernetes.io/name: sample-app
+    app.kubernetes.io/component: service-stable
+    app.kubernetes.io/part-of: apqx-platform
+  annotations:
+    # SRE: Service monitoring annotations
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: sample-app
+    # Argo Rollouts will automatically add role: stable selector

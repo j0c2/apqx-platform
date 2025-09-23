@@ -1,0 +1,26 @@
+# Canary service for preview traffic
+# Routes traffic to canary version during deployments
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-app-canary
+  namespace: sample-app
+  labels:
+    app.kubernetes.io/name: sample-app
+    app.kubernetes.io/component: service-canary
+    app.kubernetes.io/part-of: apqx-platform
+  annotations:
+    # SRE: Service monitoring annotations  
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: sample-app
+    # Argo Rollouts will automatically add role: canary selector
