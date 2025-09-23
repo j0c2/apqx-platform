@@ -64,6 +64,20 @@ The `apqx-platform` is an on-premises GitOps application platform that simulates
 
 ## System Components
 
+### Networking & Access
+- Host port mapping: k3d exposes Traefik on host ports 80/443 via the k3d load balancer (`--port 80:80@loadbalancer --port 443:443@loadbalancer`).
+- sslip.io: ingress hosts use `<name>.<LOCAL-IP>.sslip.io` and cert-manager issues self-signed certs for those hostnames.
+- Optional: `make access` sets up local port-forward on 8090/8443 when direct 80/443 cannot be used (or are blocked). Use Host headers to route correctly.
+
+### Controller installation & GitOps separation
+- Controllers (Argo CD, Kyverno, cert-manager, Argo Rollouts, Tailscale operator) are installed by Terraform via Helm.
+- GitOps resources (Kyverno policies, platform ingresses, Certificates) and the application overlay are managed by Argo CD Applications.
+- The Makefile wires these together (Step 3 applies management Applications including Kyverno policies).
+
+### CI/CD Overview
+- GitHub Actions builds the sample app, pushes to GHCR, generates an SBOM, scans with Trivy, then updates the Kustomize overlay digest.
+- Argo CD auto-syncs the digest change to rollout the new version.
+
 ### Infrastructure Layer
 - **k3d Cluster**: Lightweight Kubernetes for local development
 - **Terraform**: Infrastructure as Code for automated provisioning
