@@ -13,12 +13,12 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/example/apqx-platform
+    repoURL: https://github.com/j0c2/apqx-platform.git
     path: gitops/apps/app/overlays/dev
     targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
-    namespace: default
+    namespace: sample-app
   syncPolicy:
     automated:
       prune: true

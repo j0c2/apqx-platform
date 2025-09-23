@@ -4,15 +4,15 @@ variable "tailscale_tailnet" {
   default     = ""
 }
 
-variable "tailscale_oauth_client_id" {
+# Recommended variable names for operator OAuth credentials
+variable "tailscale_client_id" {
   description = "Tailscale OAuth client ID for the Tailscale operator"
   type        = string
-  default     = ""
+  sensitive   = true
 }
 
-variable "tailscale_oauth_client_secret" {
+variable "tailscale_client_secret" {
   description = "Tailscale OAuth client secret for the Tailscale operator"
   type        = string
   sensitive   = true
-  default     = ""
 }

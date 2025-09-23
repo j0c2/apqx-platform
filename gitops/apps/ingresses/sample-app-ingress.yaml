@@ -1,29 +1,21 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: sample-app
+  name: app
   namespace: sample-app
-  labels:
-    app.kubernetes.io/name: sample-app
-    app.kubernetes.io/component: ingress
-    app.kubernetes.io/part-of: apqx-platform
-  annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
-    traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
   ingressClassName: traefik
   tls:
-  - hosts:
-    - app.172.19.0.3.sslip.io
-    secretName: sample-app-sslip-tls
+    - hosts: [ "app.192.168.50.53.sslip.io" ]
+      secretName: app-sslip-tls
   rules:
-  - host: app.172.19.0.3.sslip.io
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: sample-app-stable
-            port:
-              number: 80
+    - host: app.192.168.50.53.sslip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sample-app-stable
+                port:
+                  number: 80

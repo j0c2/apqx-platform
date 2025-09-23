@@ -1,31 +1,21 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: argocd-server-ingress
+  name: argocd-server
   namespace: argocd
-  labels:
-    app.kubernetes.io/name: argocd-server
-    app.kubernetes.io/component: server
-    app.kubernetes.io/part-of: argocd
-  annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
-    traefik.ingress.kubernetes.io/router.tls: "true"
-    nginx.ingress.kubernetes.io/backend-protocol: GRPC
-    nginx.ingress.kubernetes.io/grpc-backend: "true"
 spec:
   ingressClassName: traefik
   tls:
-  - hosts:
-    - argocd.172.19.0.3.sslip.io
-    secretName: argocd-sslip-tls
+    - hosts: [ "argocd.192.168.50.53.sslip.io" ]
+      secretName: argocd-sslip-tls
   rules:
-  - host: argocd.172.19.0.3.sslip.io
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: argocd-server
-            port:
-              number: 80
+    - host: argocd.192.168.50.53.sslip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80

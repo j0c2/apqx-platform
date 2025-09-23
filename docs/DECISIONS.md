@@ -160,6 +160,34 @@ jobs:
 
 ---
 
+## Additional Decisions (2025-09-23)
+
+### Traefik Exposure via k3d LoadBalancer
+- Decision: Map host ports 80/443 to the k3d load balancer (`-p "80:80@loadbalancer" -p "443:443@loadbalancer"`).
+- Rationale: Guarantees LAN reachability and avoids agent-specific port bindings. Matches sslip.io expectations.
+
+### Ingress Host Management (sslip.io)
+- Decision: Keep hosts templated in Git (generic), and dynamically set to `*.${LOCAL_IP}.sslip.io` at deploy time.
+- Implementation: `scripts/setup/update-ingress-hosts.sh` + `make update-ingress-hosts`.
+- Rationale: LOCAL_IP changes frequently on laptops/CI; avoids hardcoding per-user IPs in Git.
+
+### cert-manager + Self-Signed ClusterIssuer
+- Decision: Use a self-signed `ClusterIssuer` for development TLS.
+- Implementation: Certificates created for `app|argocd|rollouts.${LOCAL_IP}.sslip.io` during `make up`.
+- Rationale: Provides HTTPS end-to-end without external ACME setup.
+
+### Tailscale Operator OAuth Secrets
+- Decision: Never commit OAuth credentials. Create K8s Secret from Terraform variables.
+- Implementation: TF variables `tailscale_client_id` and `tailscale_client_secret` (sensitive),
+  resource `kubernetes_secret.operator-oauth`, Helm values use `oauth.existingSecret`.
+- Rationale: Separation of secrets from code; easy local/CI injection via env vars.
+
+### Sample App ServiceAccount
+- Decision: Explicitly manage `ServiceAccount`/RBAC in base kustomization to avoid forbidden pod creation.
+- Rationale: Rollout initially failed due to missing ServiceAccount; fixed to ensure reproducible deploys.
+
+---
+
 ## Summary
 
 Both stretch goal implementations prioritize:
@@ -174,4 +202,4 @@ These choices directly align with take-home assessment goals: demonstrating tech
 ---
 
 **Last Updated**: 2025-09-23  
-**Platform Version**: v1.0 with Progressive Delivery + Self-Hosted CI
+**Platform Version**: v1.0 with Progressive Delivery + Self-Hosted CI + LB/Ingress/TLS refinements

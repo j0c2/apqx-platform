@@ -12,8 +12,8 @@ resource "null_resource" "k3d_cluster" {
         k3d cluster create ${local.cluster_name} \
           --servers 1 \
           --agents 1 \
-          --port "80:80@agent:0" \
-          --port "443:443@agent:0" \
+          --port "80:80@loadbalancer" \
+          --port "443:443@loadbalancer" \
           --wait
       else
         echo "Cluster ${local.cluster_name} already exists; skipping create"

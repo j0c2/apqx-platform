@@ -2,9 +2,8 @@
 # OAuth authentication for MagicDNS service exposure
 
 oauth:
-  clientId:   "${client_id}"
-  clientSecret: "${client_secret}"
-  # Operator will authenticate via OAuth client credentials
+  # Reference precreated secret to avoid putting credentials in values
+  existingSecret: operator-oauth
 
 operatorConfig:
   defaultProxyClass: ""

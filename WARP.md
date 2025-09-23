@@ -13,6 +13,7 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 - [GitOps Patterns](#gitops-patterns)
 - [GitHub Actions](#github-actions)
 - [AI Assistant Guidelines](#ai-assistant-guidelines)
+- [Take Home Assessment Requirements](#take-home-assessment-requirements)
 
 ## Project Overview
 
@@ -200,6 +201,57 @@ When modifying workflows:
    - Validate that GitHub Actions workflows pass
    - Document any new placeholders in `docs/README.md`
 
+
+## Take Home Assessment Requirements
+
+**Critical Requirement**: Make sure the project fulfills the assessment's deliverable goals, functional requirements, and stretch goals, nothing more, nothing less.
+
+Constraints (simulate on-prem):
+1. **Cluster**: Use of k3s
+2. **Ingress Controller**: Any ingress controller you prefer (document your choice and
+why)
+3. **DNS**: Try to use a DNS / Magic DNS setup and not IP address to make the
+application externally accessible. (Tailscale k8s operator would be nice to see here)
+4. **GitOps**: Argo CD (preferred)
+5. **CI/CD**: GitHub Actions
+6. **Automation**: Use Terraform / config management for infra/bootstrap where
+sensible
+7. **Security**: Include basic hardening (see “Security requirements”)
+
+Functional Requirements:
+1. Cluster bootstrap
+   - Infra automation brings up a local K8s cluster
+   - Installs and configures an ingress controller
+   - Installs and configures a GitOps deployment tool
+2. Application deployment via GitOps
+   - Deploy a simple web app serving JSON with:
+      - app name
+      - build SHA
+      - current timestamp (from inside the pod)
+      - Accessible via Ingress at `http://app.<LOCAL-IP>.sslip.io/`, `https://<app-name>.<tailnet-name>.net`
+      - Include readiness/liveness probes, resource requests/limits, and a safe update strategy
+3. CI/CD
+   - GitHub Actions workflow to:
+      - build container image
+      - run basic test(s)
+      - scan image (e.g., Trivy)
+      - push image to a registry (GHCR or local)
+      - update GitOps layer by digest, not :latest
+4. Security requirements (minimum)
+   - Pin container images by digest in manifests
+   - RBAC: app runs under a dedicated ServiceAccount with least privilege
+   - Secrets handled securely (no plaintext in repo)
+5. SRE/operability (minimum)
+   - HPA with safe min/max
+   - Basic observability (metrics, annotations, or alerts)
+6. DNS/Ingress
+   - Functional hostname using magic DNS service (document exact URL).
+
+Stretch goals:
+   - TLS with cert-manager (self-signed OK)
+   - Policy enforcement (OPA Gatekeeper, Kyverno)
+   - Progressive delivery (Argo Rollouts or similar)
+   - Self-hosted CI runner
 ---
 
 *Last updated: 2025-09-22*

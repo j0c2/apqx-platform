@@ -1,29 +1,21 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: argo-rollouts-dashboard-ingress
+  name: argo-rollouts-dashboard
   namespace: argo-rollouts
-  labels:
-    app.kubernetes.io/name: argo-rollouts-dashboard
-    app.kubernetes.io/component: dashboard
-    app.kubernetes.io/part-of: argo-rollouts
-  annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
-    traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
   ingressClassName: traefik
   tls:
-  - hosts:
-    - rollouts.172.19.0.3.sslip.io
-    secretName: rollouts-sslip-tls
+    - hosts: [ "rollouts.192.168.50.53.sslip.io" ]
+      secretName: rollouts-sslip-tls
   rules:
-  - host: rollouts.172.19.0.3.sslip.io
-    http:
-      paths:
-      - path: /rollouts
-        pathType: Prefix
-        backend:
-          service:
-            name: argo-rollouts-dashboard
-            port:
-              number: 3100
+    - host: rollouts.192.168.50.53.sslip.io
+      http:
+        paths:
+          - path: /rollouts/
+            pathType: Prefix
+            backend:
+              service:
+                name: argo-rollouts-dashboard
+                port:
+                  number: 3100

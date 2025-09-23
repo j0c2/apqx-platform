@@ -6,6 +6,8 @@ kind: Kustomization
 
 resources:
 - namespace.yaml
+- serviceaccount.yaml
+- role.yaml
 - service.yaml
 - pdb.yaml
 - rolebinding.yaml

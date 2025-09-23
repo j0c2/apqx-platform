@@ -1,61 +1,67 @@
 # apqx-platform
-On-Prem GitOps App Platform (Mini) - Self-hosted CI enabled ✅
 
-A complete GitOps platform for on-premises Kubernetes deployments with security, automation, and observability best practices. Features k3d, Argo CD, Traefik, Kyverno, and Tailscale integration.
+On-Prem GitOps App Platform (Mini) with k3d + Argo CD + Traefik + cert-manager + Kyverno (+ optional Tailscale).
 
 ## Quick Start
 
 ```bash
-# 1. Check dependencies
+# 0) (Optional) Set Tailscale OAuth for operator (no secrets in code)
+export TF_VAR_tailscale_client_id="<your_client_id>"
+export TF_VAR_tailscale_client_secret="<your_client_secret>"
+
+# 1) Check dependencies
 make check-deps
 
-# 2. Deploy the platform (k3d cluster + GitOps stack)
+# 2) Create cluster + install platform
 make up
 
-# 3. Check platform status
+# 3) Show status and URLs
 make status
 
-# 4. Access the sample app
-open http://app.$(ifconfig | grep "inet " | grep -v ********* | awk '{print $2}' | head -1).sslip.io
+# 4) (Optional) Update Ingress hosts to current LOCAL_IP (sslip.io)
+make update-ingress-hosts
 
-# 5. Clean up when done
+# 5) Destroy when done (safe prompt)
 make destroy
 ```
 
-## 🚀 Quick Access Routes (TLS-Enabled)
+## Access URLs (TLS via sslip.io)
 
-**Primary GitOps Platform URLs (HTTPS):**
+First, get your local IP:
 
-- **ArgoCD UI**: `https://argocd.172.19.0.3sslip.io`
-  - Username: `admin`
-  - Password: `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d`
-
-- **Argo Rollouts Dashboard**: `https://rollouts.172.19.0.3sslip.io/rollouts/`
-  - View canary deployments and traffic management
-
-- **Sample App**: `https://app.172.19.0.3sslip.io`
-  - JSON API endpoints with build SHA tracking
-
-**Local Port Forward (Alternative Access):**
 ```bash
-# Forward Traefik ports to localhost
-kubectl port-forward -n kube-system svc/traefik 8080:80 8443:443
-
-# Then access via:
-# - http://localhost:8080
-# - https://localhost:8443 (self-signed cert)
+LOCAL_IP=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head -1)
 ```
 
-**TLS Certificate Notes:**
-- All services have TLS enabled via cert-manager
-- Self-signed certificates for sslip.io domains
-- Browser will show security warning (accept to proceed)
+- ArgoCD:     https://argocd.$LOCAL_IP.sslip.io  (user: admin; pass: `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d`)
+- Rollouts:   https://rollouts.$LOCAL_IP.sslip.io/rollouts/
+- Sample App: https://app.$LOCAL_IP.sslip.io/api/status  (note: `/` returns 405)
 
-## 🏗️ Architecture
+## Notes
+- TLS is self-signed by cert-manager. Your browser will warn; curl needs `-k`.
+- If Sample App 404s via HTTPS, wait 10–20s or run `make update-ingress-hosts` (host must match LOCAL_IP).
+- Tailscale operator installs only if you provide TF_VAR_tailscale_client_*.
+
+## Troubleshooting
+```bash
+# Verify pods and services
+kubectl get pods -A
+kubectl get svc -A
+
+# Check ingresses and certs
+kubectl get ingress -A
+kubectl get certificates -A
+
+# Sample App direct test (bypassing Traefik)
+kubectl port-forward -n sample-app svc/sample-app 8095:80 &
+curl -s http://localhost:8095/api/status | jq
+```
+
+## Architecture (brief)
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design.
 
-## 🎯 Assessment Compliance
+## Assessment Summary
 
 ✅ **All requirements met:**
 - **Cluster**: k3d with Terraform automation
@@ -67,7 +73,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design.
 - **SRE**: HPA, PDB, resource limits, observability
 - **Infrastructure**: Fully automated with `make up`
 
-## 🚀 Components
+## Components
 
 - **k3d cluster**: Local Kubernetes with Traefik ingress
 - **Argo CD**: GitOps deployment controller with UI
@@ -76,7 +82,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design.
 - **cert-manager**: Automated TLS certificate management
 - **Tailscale**: Secure remote access via MagicDNS
 
-## 🌐 Platform Access
+## Platform Access (alt methods)
 
 ### 📱 Sample Application
 
@@ -189,7 +195,7 @@ kubectl get applications -n argocd
 kubectl get all -n sample-app
 ```
 
-## Security Features
+## Security Features (high level)
 
 ### Container Security
 - **Non-root execution**: Runs as user/group 1001:1001
@@ -231,7 +237,7 @@ stringData:
 - **Multi-stage builds**: Build dependencies not in runtime
 - **Container scanning**: Trivy scans in CI pipeline
 
-## SRE & Monitoring
+## SRE & Monitoring (dev defaults)
 
 ### Service Level Objectives (SLO)
 - **Target Availability**: 99.9% uptime
@@ -283,7 +289,7 @@ prometheus.io/path: "/metrics"
 - **Level**: Info (configurable via environment)
 - **Output**: stdout/stderr for container log collection
 
-## Platform Verification
+## Verification Snippets
 
 ### Access URLs to Verify
 
@@ -422,7 +428,7 @@ This platform follows GitOps principles. All changes should:
 **Security**: ✅ Hardened  
 **Monitoring**: 🔄 Ready for Enhancement
 
-## 🧪 API Endpoints
+## API Endpoints (examples)
 
 The sample application provides JSON APIs with build SHA tracking:
 
