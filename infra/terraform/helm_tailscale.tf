@@ -17,9 +17,10 @@ resource "kubernetes_secret" "tailscale_operator_oauth" {
   }
   type = "Opaque"
 
-  string_data = {
-    client_id     = var.tailscale_client_id
-    client_secret = var.tailscale_client_secret
+  # Kubernetes provider expects base64-encoded data for Secrets
+  data = {
+    client_id     = base64encode(var.tailscale_client_id)
+    client_secret = base64encode(var.tailscale_client_secret)
   }
 
   depends_on = [kubernetes_namespace.tailscale]

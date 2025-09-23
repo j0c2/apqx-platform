@@ -12,28 +12,31 @@ fi
 
 echo "Updating ingress hosts to *.${LOCAL_IP}.sslip.io"
 
-# ArgoCD
-kubectl patch ingress argocd-server-ingress -n argocd --type=json -p="[
-  {"op":"add","path":"/spec/ingressClassName","value":"traefik"},
-  {"op":"replace","path":"/spec/rules/0/host","value":"argocd.${LOCAL_IP}.sslip.io"},
-  {"op":"replace","path":"/spec/tls/0/hosts/0","value":"argocd.${LOCAL_IP}.sslip.io"},
-  {"op":"add","path":"/spec/tls/0/secretName","value":"argocd-sslip-tls"}
-]" >/dev/null
+# ArgoCD (merge patch)
+kubectl patch ingress argocd-server-ingress -n argocd --type=merge -p '{
+  "spec": {
+    "ingressClassName": "traefik",
+    "tls": [{"hosts": ["argocd.'"${LOCAL_IP}"'.sslip.io"], "secretName": "argocd-sslip-tls"}],
+    "rules": [{"host": "argocd.'"${LOCAL_IP}"'.sslip.io", "http": {"paths": [{"path": "/", "pathType": "Prefix", "backend": {"service": {"name": "argocd-server", "port": {"number": 80}}}}]}}]
+  }
+}' >/dev/null
 
 # Sample App (stable service)
-kubectl patch ingress sample-app -n sample-app --type=json -p="[
-  {"op":"add","path":"/spec/ingressClassName","value":"traefik"},
-  {"op":"replace","path":"/spec/rules/0/host","value":"app.${LOCAL_IP}.sslip.io"},
-  {"op":"replace","path":"/spec/tls/0/hosts/0","value":"app.${LOCAL_IP}.sslip.io"},
-  {"op":"add","path":"/spec/tls/0/secretName","value":"app-sslip-tls"}
-]" >/dev/null
+kubectl patch ingress sample-app -n sample-app --type=merge -p '{
+  "spec": {
+    "ingressClassName": "traefik",
+    "tls": [{"hosts": ["app.'"${LOCAL_IP}"'.sslip.io"], "secretName": "app-sslip-tls"}],
+    "rules": [{"host": "app.'"${LOCAL_IP}"'.sslip.io", "http": {"paths": [{"path": "/", "pathType": "Prefix", "backend": {"service": {"name": "sample-app-stable", "port": {"number": 80}}}}]}}]
+  }
+}' >/dev/null
 
 # Argo Rollouts Dashboard
-kubectl patch ingress argo-rollouts-dashboard-ingress -n argo-rollouts --type=json -p="[
-  {"op":"add","path":"/spec/ingressClassName","value":"traefik"},
-  {"op":"replace","path":"/spec/rules/0/host","value":"rollouts.${LOCAL_IP}.sslip.io"},
-  {"op":"replace","path":"/spec/tls/0/hosts/0","value":"rollouts.${LOCAL_IP}.sslip.io"},
-  {"op":"add","path":"/spec/tls/0/secretName","value":"rollouts-sslip-tls"}
-]" >/dev/null
+kubectl patch ingress argo-rollouts-dashboard-ingress -n argo-rollouts --type=merge -p '{
+  "spec": {
+    "ingressClassName": "traefik",
+    "tls": [{"hosts": ["rollouts.'"${LOCAL_IP}"'.sslip.io"], "secretName": "rollouts-sslip-tls"}],
+    "rules": [{"host": "rollouts.'"${LOCAL_IP}"'.sslip.io", "http": {"paths": [{"path": "/rollouts/", "pathType": "Prefix", "backend": {"service": {"name": "argo-rollouts-dashboard", "port": {"number": 3100}}}}]}}]
+  }
+}' >/dev/null
 
 echo "Ingress hosts updated to current LOCAL_IP (${LOCAL_IP})"
