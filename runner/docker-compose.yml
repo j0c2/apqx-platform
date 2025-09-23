@@ -1,7 +1,6 @@
 # GitHub Actions Self-Hosted Runner via Docker Compose
 # Provides ephemeral runner for local development and testing
 # Usage: docker compose --env-file .env up -d
-
 version: "3.9"
 
 services:
