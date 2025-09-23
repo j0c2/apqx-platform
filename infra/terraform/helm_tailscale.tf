@@ -1,11 +1,9 @@
-# Tailscale Operator Helm Release
 # Installs Tailscale K8s Operator for MagicDNS access to services
-
 resource "helm_release" "tailscale_operator" {
   name             = "tailscale-operator"
   repository       = "https://pkgs.tailscale.com/helmcharts"
   chart            = "tailscale-operator"
-  version          = "1.66.3" # pin to a known-good version for the operator
+  version          = "1.88.2"
   namespace        = "tailscale"
   create_namespace = true
 

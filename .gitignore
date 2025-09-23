@@ -1,4 +1,3 @@
-# WARP files - exclude AI assistant generated files
 .warp/
 *.warp
 .cursor/

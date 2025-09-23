@@ -1,11 +1,9 @@
-# Argo Rollouts Helm Chart Installation
 # Progressive delivery and canary deployments for Kubernetes
-
 resource "helm_release" "argo_rollouts" {
   name             = "argo-rollouts"
   repository       = "https://argoproj.github.io/argo-helm"
   chart            = "argo-rollouts"
-  version          = "2.40.4" # pin specific version
+  version          = "2.40.4"
   namespace        = "argo-rollouts"
   create_namespace = true
   

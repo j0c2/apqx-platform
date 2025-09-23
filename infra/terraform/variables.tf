@@ -1,6 +1,3 @@
-# Terraform Variables
-# Configuration variables for the GitOps platform
-
 variable "tailscale_tailnet" {
   description = "Tailscale tailnet name (e.g., yourname.gmail.com)"
   type        = string
