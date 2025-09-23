@@ -1,4 +1,3 @@
-# Makefile for apqx-platform
 # Automation targets for deploying and managing the On-Prem GitOps App Platform
 
 .PHONY: help up destroy validate plan diff sync status clean dev test lint security bootstrap check-deps install-deps
