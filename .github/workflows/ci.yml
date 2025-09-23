@@ -130,7 +130,7 @@ jobs:
 
   build:
     name: Build and Push
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, macOS, X64]
     needs: [test, lint]  # security not required for build
     if: >
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&

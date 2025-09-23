@@ -1,13 +1,13 @@
-# Self-Hosted GitHub Actions Runner
+# Self-Hosted GitHub Actions Runner (Native)
 
-This directory contains a **minimal, ephemeral self-hosted runner** using Docker Compose. This satisfies the stretch goal requirement for a self-hosted CI runner without adding complexity to the Kubernetes cluster.
+This directory contains a **native GitHub Actions self-hosted runner**. This satisfies the stretch goal requirement for a self-hosted CI runner without adding complexity to the Kubernetes cluster.
 
 ## 🎯 Design Goals
 
-- **One-command setup**: Simple `make runner-up` / `make runner-down`  
-- **Ephemeral**: Runner auto-unregisters when stopped (no lingering registrations)
-- **Secure**: Uses scoped Personal Access Token, no long-lived credentials  
-- **Minimal**: Pure Docker Compose, no additional controllers or CRDs
+- **Native performance**: Runs directly on macOS without containerization overhead
+- **Simple management**: `make runner-config` / `make runner-up` / `make runner-down` / `make runner-status`
+- **Secure**: Uses scoped Personal Access Token for authentication
+- **Configurable**: Standard GitHub runner with local configuration
 - **Local**: Runs on your laptop/VM, not in the cluster
 
 ## 🚀 Quick Start
@@ -20,14 +20,16 @@ This directory contains a **minimal, ephemeral self-hosted runner** using Docker
    - `workflow` (update GitHub Action workflows)
 3. Copy the token (starts with `ghp_...`)
 
-### 2. Configure Environment
+### 2. Configure Runner (One-time Setup)
 
 ```bash
-# The .env file was created from template - edit it:
-vim runner/.env
+# Option 1: Use Makefile helper for instructions
+make runner-config
 
-# Replace GITHUB_TOKEN with your actual token:
-GITHUB_TOKEN=ghp_your_actual_token_here
+# Option 2: Manual configuration
+cd runner
+./config.sh --url https://github.com/j0c2/apqx-platform --token YOUR_PAT
+# Follow prompts (press Enter for defaults)
 ```
 
 ### 3. Start Runner
@@ -39,7 +41,7 @@ make runner-up
 ### 4. Verify Registration  
 
 Visit your repo → **Settings** → **Actions** → **Runners**  
-You should see `local-runner-1` with status **Online**.
+You should see `self-hosted-runner` with status **Online**.
 
 ### 5. Test CI Pipeline
 
@@ -47,37 +49,41 @@ Push to main branch - the **build** job should now run on your self-hosted runne
 
 ```bash
 git push origin main
-# Check Actions tab - build job will show [self-hosted, linux, x64]
+# Check Actions tab - build job will show [self-hosted, macOS, X64]
 ```
 
 ## 🛠 Management Commands
 
 ```bash
-# Start runner
-make runner-up
+# One-time setup
+make runner-config      # Show configuration instructions
 
-# Check status  
-make runner-status
+# Daily operations
+make runner-up           # Start runner
+make runner-status       # Check status  
+make runner-down         # Stop runner
 
-# Stop runner (auto-unregisters)
-make runner-down
+# Manual operations (if needed)
+cd runner
+./run.sh                 # Start manually
+./config.sh remove       # Unregister runner
 ```
 
 ## 📋 Runner Configuration
 
 | Setting | Value | Purpose |
 |---------|--------|---------|
-| **EPHEMERAL** | `"1"` | Auto-unregister when stopped |
-| **RUNNER_WORKDIR** | `/tmp/runner` | Temporary work directory |  
-| **Docker Socket** | `/var/run/docker.sock` | Enable Docker builds |
-| **Labels** | `self-hosted,linux,x64` | CI job targeting |
+| **Agent Name** | `self-hosted-runner` | Identifier in GitHub UI |
+| **Repository** | `j0c2/apqx-platform` | Target repository |
+| **Labels** | `self-hosted,macOS,X64` | CI job targeting |
+| **Work Directory** | `_work` | Job workspace |
 
 ## 🔒 Security Features  
 
-- **Scoped PAT**: Only repo + workflow permissions
-- **Ephemeral registration**: No persistent runner state
-- **Container isolation**: Runner runs in isolated container
-- **No cluster access**: Completely separate from k8s infrastructure
+- **Scoped PAT**: Only repo + workflow permissions required
+- **Local execution**: No container or network exposure
+- **Standard runner**: Uses official GitHub Actions runner binary
+- **Process isolation**: Runs as local user processes
 
 ## 🎯 CI Integration
 
@@ -86,7 +92,7 @@ Only the **build** job uses the self-hosted runner:
 ```yaml
 jobs:
   build:
-    runs-on: [self-hosted, linux, x64]  # Uses your runner
+    runs-on: [self-hosted, macOS, X64]  # Uses your runner
     
   test:
     runs-on: ubuntu-latest             # Uses GitHub hosted
@@ -98,32 +104,62 @@ This provides the stretch goal demonstration while keeping the pipeline resilien
 
 **Runner shows offline in GitHub:**
 ```bash
+make runner-status
 make runner-down
 make runner-up
-# Check Docker logs: docker logs actions-runner
+# Check logs: tail -f runner/runner.log
 ```
 
 **Build job fails:**
 ```bash  
-# Ensure Docker is available to runner
+# Check runner logs
+tail -f runner/runner.log
+
+# Check runner process
 make runner-status
-docker logs actions-runner
+ps aux | grep Runner.Listener
 ```
 
-**Token issues:**
+**Configuration issues:**
 ```bash
-# Verify token has correct scopes
-# Regenerate PAT if needed
+# Remove and reconfigure
+cd runner
+./config.sh remove
+make runner-config
+# Follow instructions to reconfigure
 ```
 
 ## 🧹 Cleanup
 
 ```bash
-# Stop and remove runner
+# Stop runner
 make runner-down
 
-# Remove environment file
-rm runner/.env
+# Remove registration (one-time)
+cd runner && ./config.sh remove
+
+# Clean work directory
+rm -rf runner/_work/*
 ```
 
-The runner is **fully reversible** and leaves no traces when stopped.
+## 📁 Directory Contents
+
+- `actions-runner-osx-x64-2.328.0.tar.gz` - Downloaded runner package
+- `bin/` - Runner binaries and dependencies
+- `config.sh` - Configuration script
+- `run.sh` - Start runner script  
+- `svc.sh` - Service management script
+- `.runner` - Runner configuration (auto-generated)
+- `.credentials*` - Authentication files (auto-generated)
+- `_work/` - Job workspace (auto-generated)
+- `_diag/` - Diagnostic logs (auto-generated)
+
+The runner provides **native macOS performance** and is fully reversible when configuration is removed.
+
+## ⚡ Performance Benefits
+
+- **No container overhead**: Direct process execution
+- **Native file system**: No volume mounting delays
+- **Local Docker**: Direct Docker daemon access
+- **Full system access**: Native macOS tools and environments
+- **Faster builds**: Local caching and no network overhead for basic operations

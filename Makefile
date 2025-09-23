@@ -1,6 +1,6 @@
 # Automation targets for deploying and managing the On-Prem GitOps App Platform
 
-.PHONY: help up destroy validate plan diff sync status clean dev test lint security bootstrap check-deps install-deps runner-up runner-down runner-status
+.PHONY: help up destroy validate plan diff sync status clean dev test lint security bootstrap check-deps install-deps runner-config runner-up runner-down runner-status
 
 # Default target
 .DEFAULT_GOAL := help
@@ -206,24 +206,72 @@ logs:
 ## runner-up: Start self-hosted GitHub Actions runner
 runner-up:
 	@echo "$(BLUE)Starting self-hosted GitHub Actions runner...$(NC)"
-	@if [ ! -f runner/.env ]; then \
-		cp runner/.env.example runner/.env && \
-		echo "$(YELLOW)⚠ Created runner/.env - please populate with your GitHub token$(NC)"; \
-		echo "$(YELLOW)  1. Create a GitHub PAT with 'repo' and 'workflow' scopes$(NC)"; \
-		echo "$(YELLOW)  2. Edit runner/.env and replace GITHUB_TOKEN$(NC)"; \
+	@if [ ! -f runner/.runner ]; then \
+		echo "$(RED)✗ Runner not configured. Please run runner configuration first:$(NC)"; \
+		echo "$(YELLOW)  1. cd runner$(NC)"; \
+		echo "$(YELLOW)  2. ./config.sh --url https://github.com/j0c2/apqx-platform --token YOUR_PAT$(NC)"; \
 		echo "$(YELLOW)  3. Run 'make runner-up' again$(NC)"; \
 		exit 1; \
 	fi
-	@cd runner && docker compose --env-file .env up -d
-	@echo "$(GREEN)✓ Runner started - check GitHub repo Settings > Actions > Runners$(NC)"
+	@if pgrep -f "Runner.Listener" > /dev/null; then \
+		echo "$(YELLOW)⚠ Runner is already running$(NC)"; \
+	else \
+		echo "$(GREEN)Starting GitHub Actions runner...$(NC)"; \
+		nohup bash -c 'cd runner && ./run.sh' > runner/runner.log 2>&1 & \
+		sleep 2; \
+		if pgrep -f "Runner.Listener" > /dev/null; then \
+			echo "$(GREEN)✓ Runner started - check GitHub repo Settings > Actions > Runners$(NC)"; \
+		else \
+			echo "$(RED)✗ Failed to start runner - check runner/runner.log$(NC)"; \
+		fi; \
+	fi
 
 ## runner-down: Stop self-hosted GitHub Actions runner
 runner-down:
 	@echo "$(BLUE)Stopping self-hosted GitHub Actions runner...$(NC)"
-	@cd runner && docker compose --env-file .env down -v
-	@echo "$(GREEN)✓ Runner stopped and unregistered$(NC)"
+	@if pgrep -f "Runner.Listener" > /dev/null; then \
+		echo "$(GREEN)Stopping runner processes...$(NC)"; \
+		pkill -f "Runner.Listener" || true; \
+		pkill -f "run-helper.sh" || true; \
+		sleep 2; \
+		if pgrep -f "Runner.Listener" > /dev/null; then \
+			echo "$(YELLOW)⚠ Force killing runner processes...$(NC)"; \
+			pkill -9 -f "Runner.Listener" || true; \
+		fi; \
+		echo "$(GREEN)✓ Runner stopped$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠ Runner is not running$(NC)"; \
+	fi
+
+## runner-config: Configure self-hosted runner (one-time setup)
+runner-config:
+	@echo "$(BLUE)Configuring self-hosted GitHub Actions runner...$(NC)"
+	@if [ -f runner/.runner ]; then \
+		echo "$(YELLOW)⚠ Runner already configured. To reconfigure, run 'cd runner && ./config.sh remove' first$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Instructions for runner configuration:$(NC)"
+	@echo "  1. Create a GitHub PAT with 'repo' and 'workflow' scopes"
+	@echo "  2. cd runner"
+	@echo "  3. ./config.sh --url https://github.com/j0c2/apqx-platform --token YOUR_PAT"
+	@echo "  4. Follow prompts (press Enter for defaults)"
+	@echo "  5. Run 'make runner-up' to start the runner"
+	@echo ""
+	@echo "$(YELLOW)Note: Replace YOUR_PAT with your actual GitHub Personal Access Token$(NC)"
 
 ## runner-status: Check runner status
 runner-status:
 	@echo "$(BLUE)Self-hosted runner status:$(NC)"
-	@docker ps --filter "name=actions-runner" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" || echo "$(RED)✗ Runner not running$(NC)"
+	@if [ -f runner/.runner ]; then \
+		echo "$(GREEN)Runner Configuration:$(NC)"; \
+		grep -E "agentName|gitHubUrl" runner/.runner | sed 's/^/  /'; \
+		echo ""; \
+	else \
+		echo "$(RED)✗ Runner not configured$(NC)"; \
+	fi
+	@if pgrep -f "Runner.Listener" > /dev/null; then \
+		echo "$(GREEN)✓ Runner Process: Running (PID: $$(pgrep -f 'Runner.Listener'))$(NC)"; \
+		echo "$(GREEN)Runner Logs: runner/runner.log$(NC)"; \
+	else \
+		echo "$(RED)✗ Runner Process: Not running$(NC)"; \
+	fi
