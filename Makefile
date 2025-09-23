@@ -1,6 +1,6 @@
 # Automation targets for deploying and managing the On-Prem GitOps App Platform
 
-.PHONY: help up destroy validate plan diff sync status clean dev test lint security bootstrap check-deps install-deps
+.PHONY: help up destroy validate plan diff sync status clean dev test lint security bootstrap check-deps install-deps runner-up runner-down runner-status
 
 # Default target
 .DEFAULT_GOAL := help
@@ -202,3 +202,28 @@ logs:
 		echo "$(GREEN)Argo CD Controller logs:$(NC)"; \
 		kubectl logs -n argocd -l app.kubernetes.io/component=application-controller --tail=50; \
 	fi
+
+## runner-up: Start self-hosted GitHub Actions runner
+runner-up:
+	@echo "$(BLUE)Starting self-hosted GitHub Actions runner...$(NC)"
+	@if [ ! -f runner/.env ]; then \
+		cp runner/.env.example runner/.env && \
+		echo "$(YELLOW)⚠ Created runner/.env - please populate with your GitHub token$(NC)"; \
+		echo "$(YELLOW)  1. Create a GitHub PAT with 'repo' and 'workflow' scopes$(NC)"; \
+		echo "$(YELLOW)  2. Edit runner/.env and replace GITHUB_TOKEN$(NC)"; \
+		echo "$(YELLOW)  3. Run 'make runner-up' again$(NC)"; \
+		exit 1; \
+	fi
+	@cd runner && docker compose --env-file .env up -d
+	@echo "$(GREEN)✓ Runner started - check GitHub repo Settings > Actions > Runners$(NC)"
+
+## runner-down: Stop self-hosted GitHub Actions runner
+runner-down:
+	@echo "$(BLUE)Stopping self-hosted GitHub Actions runner...$(NC)"
+	@cd runner && docker compose --env-file .env down -v
+	@echo "$(GREEN)✓ Runner stopped and unregistered$(NC)"
+
+## runner-status: Check runner status
+runner-status:
+	@echo "$(BLUE)Self-hosted runner status:$(NC)"
+	@docker ps --filter "name=actions-runner" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" || echo "$(RED)✗ Runner not running$(NC)"

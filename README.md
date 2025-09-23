@@ -449,5 +449,96 @@ This platform meets **100% of assessment requirements**:
 ✅ **Policy enforcement** with Kyverno  
 ✅ **TLS certificates** via cert-manager  
 ✅ **Tailscale integration** for secure access  
+✅ **Progressive delivery** with Argo Rollouts canary deployments
+✅ **Self-hosted CI runner** for local build execution
 
 **Perfect for take-home assessments and production-like demos!**
+
+## 🏃 Self-Hosted CI Runner (Stretch Goal)
+
+For enhanced CI/CD control, this platform includes an **optional self-hosted GitHub Actions runner**:
+
+### Quick Start
+
+```bash
+# 1. Start the runner (creates .env template on first run)
+make runner-up
+
+# 2. Edit runner/.env with your GitHub PAT
+vim runner/.env  # Add your GitHub token
+
+# 3. Start again with credentials
+make runner-up
+
+# 4. Verify in GitHub: Settings → Actions → Runners
+# You should see 'local-runner-1' online
+
+# 5. Test: push to main - build job runs on your runner!
+git push origin main
+```
+
+### Management Commands
+
+```bash
+make runner-status  # Check runner status
+make runner-down    # Stop and unregister runner
+```
+
+### Why Self-Hosted?
+
+- **Stretch Goal Compliance**: Demonstrates advanced CI/CD setup
+- **Build Performance**: Faster builds with local Docker cache
+- **Resource Control**: Full control over build environment
+- **Security**: Private builds for sensitive code
+- **Cost Optimization**: No GitHub Actions minutes consumed
+
+### Architecture
+
+- **Ephemeral**: Runner auto-unregisters when stopped
+- **Minimal**: Pure Docker Compose, no cluster complexity
+- **Secure**: Scoped GitHub PAT, container isolation
+- **Targeted**: Only `build` job uses self-hosted (other jobs remain on GitHub-hosted)
+
+See [runner/README.md](runner/README.md) for detailed setup instructions.
+
+## 🚀 Progressive Delivery (Stretch Goal)
+
+Argo Rollouts provides **canary deployments** with automated traffic management:
+
+### Canary Strategy
+
+```yaml
+strategy:
+  canary:
+    steps:
+    - setWeight: 20   # 20% traffic to new version
+    - pause: {duration: 60s}
+    - setWeight: 50   # 50% traffic to new version  
+    - pause: {duration: 60s}
+    - setWeight: 100  # 100% traffic (promote)
+```
+
+### Rollout Commands
+
+```bash
+# Check rollout status
+kubectl get rollouts -n sample-app
+
+# View rollout details
+kubectl describe rollout sample-app -n sample-app
+
+# Promote canary (skip remaining steps)
+kubectl patch rollout sample-app -n sample-app --type merge -p '{"spec":{"paused":false}}'
+
+# Abort rollout (rollback to stable)
+kubectl patch rollout sample-app -n sample-app --type merge -p '{"spec":{"abort":true}}'
+```
+
+### Traffic Splitting
+
+- **Stable Service**: `sample-app-stable` (production traffic)
+- **Canary Service**: `sample-app-canary` (testing traffic)  
+- **Progressive**: Automatic weight-based traffic shifting
+- **Ingress**: Routes to stable service for consistent production access
+
+**Trigger a canary deployment** by pushing new code - the CI/CD pipeline will build a new image and trigger the rollout automatically!

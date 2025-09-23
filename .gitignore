@@ -44,3 +44,6 @@ kubeconfig
 # Build artifacts
 dist/
 build/
+
+# GHA Runner
+*.env
