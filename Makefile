@@ -87,6 +87,7 @@ up:
 	@echo "$(BLUE)Step 3: Deploying GitOps applications...$(NC)"
 	@kubectl apply -f gitops/apps/management/cert-manager-infrastructure.yaml
 	@kubectl apply -f gitops/apps/management/ingresses.yaml
+	@kubectl apply -f gitops/apps/argocd/kyverno-app.yaml
 	@kubectl apply -f gitops/apps/app/application.yaml || echo "$(YELLOW)Sample app application may already exist$(NC)"
 	@echo "$(BLUE)Step 4: Applying ClusterIssuer and dynamic sslip.io Certificates...$(NC)"
 	@kubectl apply -f gitops/infrastructure/cert-manager/cluster-issuer-selfsigned.yaml

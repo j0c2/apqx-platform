@@ -13,7 +13,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/j0c2/apqx-platform
+    repoURL: https://github.com/j0c2/apqx-platform.git
     path: gitops/apps/management
     targetRevision: main
   destination:

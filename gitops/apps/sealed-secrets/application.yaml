@@ -13,9 +13,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/example/apqx-platform
+    repoURL: https://github.com/j0c2/apqx-platform.git
     path: gitops/apps/sealed-secrets
-    targetRevision: HEAD
+    targetRevision: main
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system

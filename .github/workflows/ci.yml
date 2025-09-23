@@ -134,7 +134,8 @@ jobs:
     needs: [test, lint]  # security not required for build
     if: >
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      needs.test.result == 'success' && needs.lint.result == 'success'
+      needs.test.result == 'success' && needs.lint.result == 'success' &&
+      env.ACT != 'true'
     outputs:
       digest: ${{ steps.build.outputs.digest }}
       image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
@@ -192,7 +193,7 @@ jobs:
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
         with:
-          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
           format: spdx-json
           output-file: sbom.spdx.json
 
@@ -205,17 +206,18 @@ jobs:
   scan:
     name: Security Scan (Image)
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [build, build_act]
     if: >
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      needs.build.result == 'success'
+      (needs.build.result == 'success' || needs.build_act.result == 'success') &&
+      env.ACT != 'true'
     continue-on-error: true
     steps:
       - name: Run Trivy vulnerability scanner (image)
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
         with:
-          image-ref: ${{ needs.build.outputs.image }}@${{ needs.build.outputs.digest }}
+          image-ref: ${{ (needs.build.outputs.image || needs.build_act.outputs.image) }}@${{ (needs.build.outputs.digest || needs.build_act.outputs.digest) }}
           format: 'sarif'
           output: 'trivy-image-results.sarif'
 
@@ -228,10 +230,11 @@ jobs:
   deploy:
     name: Update GitOps
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [build, build_act]
     if: >
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      needs.build.result == 'success'
+      (needs.build.result == 'success' || needs.build_act.result == 'success') &&
+      env.ACT != 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -246,7 +249,7 @@ jobs:
       - name: Update image digest in overlay
         working-directory: gitops/apps/app/overlays/dev
         run: |
-          kustomize edit set image "ghcr.io/${{ github.repository }}/sample-app@${{ needs.build.outputs.digest }}"
+          kustomize edit set image "ghcr.io/${{ github.repository }}/sample-app@${{ needs.build.outputs.digest || needs.build_act.outputs.digest }}"
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add kustomization.yaml
