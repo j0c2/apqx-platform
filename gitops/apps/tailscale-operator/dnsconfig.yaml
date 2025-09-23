@@ -1,0 +1,13 @@
+# Tailscale DNSConfig for in-cluster *.ts.net resolution
+# Configures a nameserver to resolve Tailscale Magic DNS names from within the cluster
+
+apiVersion: tailscale.com/v1alpha1
+kind: DNSConfig
+metadata:
+  name: ts-dns
+  namespace: tailscale
+spec:
+  nameserver:
+    image:
+      repo: tailscale/k8s-nameserver
+      tag: unstable

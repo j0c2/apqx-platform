@@ -47,11 +47,4 @@ build/
 
 # GHA Runner
 *.env
-runner/bin/
-runner/externals/
-runner/actions-runner-*.tar.gz
-runner/_diag/
-runner/.credentials*
-runner/.path
-runner/.runner
-runner/runsvc.sh
+/runner/*

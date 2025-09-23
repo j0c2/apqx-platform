@@ -1,0 +1,14 @@
+# Tailscale egress ExternalName Service
+# Allows reaching Tailnet HTTPS targets from within the cluster
+# Replace <FULL_MAGICDNS_NAME> with your actual Tailscale Magic DNS name
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: ts-egress
+  namespace: sample-app
+  annotations:
+    tailscale.com/tailnet-fqdn: "<FULL_MAGICDNS_NAME>" # e.g., my-db.tail1234.ts.net
+spec:
+  externalName: placeholder
+  type: ExternalName
