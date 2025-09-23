@@ -28,7 +28,7 @@ type AppInfo struct {
 
 var (
 	appName   = "sample-app"
-	version   = "1.0.0"
+	version   = "2.0.0"
 	buildSHA  = "dev" // Will be injected at build time
 	startTime = time.Now()
 )
