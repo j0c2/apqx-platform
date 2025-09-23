@@ -7,10 +7,10 @@ The `apqx-platform` is an on-premises GitOps application platform that simulates
 ## Architecture Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                          apqx-platform                              │
-│                     On-Prem GitOps Platform                        │
-└─────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────┐
+│                          apqx-platform                            │
+│                     On-Prem GitOps Platform                       │
+└───────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Developer     │    │   GitHub        │    │   CI/CD         │
@@ -30,8 +30,8 @@ The `apqx-platform` is an on-premises GitOps application platform that simulates
          │ kubectl/k3d                          │ │   (GHCR)        │
          │                                      │ │                 │
          ▼                                      ▼ └─────────────────┘
-┌─────────────────────────────────────────────────────────────────────┐
-│                         Local k3d Cluster                          │
+┌───────────────────────────────────────────────────────────────────┐
+│                         Local k3d Cluster                         │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐    │
 │  │   Argo CD       │  │   Sample App    │  │   Traefik       │    │
 │  │   (GitOps)      │  │                 │  │   (Ingress)     │    │
@@ -40,7 +40,7 @@ The `apqx-platform` is an on-premises GitOps application platform that simulates
 │  │ • App Mgmt      │  │ • HPA (1-3)     │  │ • SSL Term.     │    │
 │  │ • UI Dashboard  │  │ • PDB           │  │ • DNS Magic     │    │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘    │
-│                                                                    │
+│                                                                   │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐    │
 │  │   Kyverno       │  │   Cert Manager  │  │   Tailscale     │    │
 │  │   (Policies)    │  │   (TLS)         │  │   (Network)     │    │
@@ -49,17 +49,17 @@ The `apqx-platform` is an on-premises GitOps application platform that simulates
 │  │ • Best Practices│  │ • Automatic     │  │ • Secure Access │    │
 │  │ • Compliance    │  │ • cert-manager  │  │ • VPN-less      │    │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘    │
-└─────────────────────────────────────────────────────────────────────┘
+└───────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────┐
+┌────────────────────────────────────────────────────────────────────┐
 │                         External Access                            │
-│                                                                     │
-│  HTTP/HTTPS:  http://app-onprem.tail13bd49.ts.net (Tailscale)     │
-│               https://app.<LOCAL-IP>.sslip.io (Traefik+TLS)       │
-│                                                                     │
-│  GitOps UI:   http://localhost:8080 (Argo CD)                     │
-│               kubectl port-forward                                  │
-└─────────────────────────────────────────────────────────────────────┘
+│                                                                    │
+│  HTTPS/HTTP:  https://app-onprem.tail13bd49.ts.net (Tailscale+TLS) │
+│               http://app.<LOCAL-IP>.sslip.io (Traefik)             │
+│                                                                    │
+│  GitOps UI:   http://localhost:8080 (Argo CD)                      │
+│               kubectl port-forward                                 │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
 ## System Components
