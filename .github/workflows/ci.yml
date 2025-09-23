@@ -205,8 +205,6 @@ jobs:
 
   scan:
     name: Security Scan (Image)
-  scan:
-    name: Security Scan (Image)
     runs-on: ubuntu-latest
     needs: [build]
     if: >
