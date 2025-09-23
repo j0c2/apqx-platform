@@ -162,6 +162,26 @@ jobs:
 
 ## Additional Decisions (2025-09-23)
 
+### Terraform k3d parameterization & auto recreation
+- Decision: Expose cluster sizing and host port mappings via variables; compute a configuration fingerprint as a Terraform trigger.
+- Rationale: Safe, deterministic re-provisioning when critical networking or sizing parameters change.
+- Outcome: Changing server/agent counts or 80/443 host mappings causes planned replacement of the k3d cluster only.
+
+### Workflow: SBOM by digest and simplified self-hosted build
+- Decision: Generate SBOM against the pushed image digest, not tags; rely on a single self-hosted build job for simplicity.
+- Rationale: Digest is immutable and authoritative; removing conditional job paths makes CI more reliable and easier to debug.
+- Outcome: CI is deterministic, SBOM maps exactly to the deployed artifact.
+
+### Ingress host updates via merge patch
+- Decision: Use kubectl merge patches to set ingressClassName, TLS hosts/secret, and rules.host per LOCAL_IP.
+- Rationale: JSON merge patches are simpler and more robust than RFC6902 patch sequences in this scenario.
+- Outcome: Fewer patch errors and easier maintenance.
+
+### Kyverno policies managed via Argo CD Application
+- Decision: Install Kyverno via Terraform Helm, enforce policies via Argo CD Application.
+- Rationale: Clean separation: bootstrap controllers with IaC, manage policy CRDs declaratively through GitOps.
+- Outcome: Policies are versioned with the rest of GitOps resources and can be promoted across environments.
+
 ### Traefik Exposure via k3d LoadBalancer
 - Decision: Map host ports 80/443 to the k3d load balancer (`-p "80:80@loadbalancer" -p "443:443@loadbalancer"`).
 - Rationale: Guarantees LAN reachability and avoids agent-specific port bindings. Matches sslip.io expectations.

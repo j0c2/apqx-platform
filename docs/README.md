@@ -52,8 +52,8 @@ Operational notes
 
 CI/CD and local testing with act
 - The workflow is act-friendly:
-  - A dedicated build_act job runs on ubuntu-latest when ACT == "true".
-  - Deploy and scan jobs are skipped under act to avoid pushing to remote registry and repo.
+  - A dedicated build path is not required; use GitHub-hosted for local emulation where possible.
+  - Deploy and scan steps expect a successful build digest.
 - To run locally:
   act --container-architecture linux/amd64
 - .actrc provides defaults for platforms and dummy tokens.
@@ -69,4 +69,3 @@ Troubleshooting quick commands
 - kubectl get certificates -A; kubectl describe certificate -n sample-app sample-app-cert
 - kubectl get ingress -A; kubectl describe ingress -n sample-app sample-app
 - make verify-deployment
-

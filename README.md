@@ -35,7 +35,7 @@ LOCAL_IP=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head
 
 - ArgoCD:     https://argocd.$LOCAL_IP.sslip.io  (user: admin; pass: `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d`)
 - Rollouts:   https://rollouts.$LOCAL_IP.sslip.io/rollouts/
-- Sample App: https://app.$LOCAL_IP.sslip.io/api/status  (note: `/` returns 405)
+- Sample App: https://app.$LOCAL_IP.sslip.io/api/status  (note: `/` returns an HTML homepage)
 
 ## Notes
 - TLS is self-signed by cert-manager. Your browser will warn; curl needs `-k`.
@@ -83,6 +83,26 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design.
 - **Tailscale**: Secure remote access via MagicDNS
 
 ## Platform Access (alt methods)
+
+### Fast local access via port-forward (recommended on macOS)
+If ports 80/443 are occupied or you prefer not to bind them on your host, use the built-in port-forward helper:
+
+```bash
+make access        # starts port forwards on 8090 (HTTP) and 8443 (HTTPS)
+make test-access   # quick curl checks using Host headers
+make stop-access   # stop the port-forwards
+```
+
+When using port-forwarded access, include the proper Host header that matches your sslip.io host.
+Example:
+
+```bash
+TRAEFIK_IP=$(kubectl get svc -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+# HTTP
+curl -s -H "Host: app.$TRAEFIK_IP.sslip.io" http://localhost:8090/api/status | jq
+# HTTPS
+curl -sk -H "Host: app.$TRAEFIK_IP.sslip.io" https://localhost:8443/api/status | jq
+```
 
 ### 📱 Sample Application
 
@@ -164,6 +184,26 @@ hostname -I | awk '{print $1}'
 4. **Deployment** → New image rolled out to cluster
 
 ## Development
+
+### Cluster configuration (Terraform)
+
+Terraform parameterizes the k3d cluster and will automatically recreate the cluster when critical settings change:
+
+- Variables (with defaults):
+  - server_count (1), agent_count (1)
+  - http_host_port (80), https_host_port (443)
+- Auto recreation trigger: a configuration fingerprint (servers/agents/ports) is stored in a null_resource trigger; when any of these values change, Terraform replaces the cluster to apply new settings.
+
+To override:
+
+```bash
+TF_VAR_server_count=1 TF_VAR_agent_count=1 TF_VAR_http_host_port=80 TF_VAR_https_host_port=443 \
+  terraform -chdir=infra/terraform apply -auto-approve
+```
+
+Notes:
+- Changing host ports or counts requires recreation; Terraform handles it automatically via the fingerprint.
+- The Makefile’s make up will apply the same.
 
 ### Project Structure
 
