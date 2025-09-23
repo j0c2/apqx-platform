@@ -19,19 +19,19 @@ spec:
   ingressClassName: traefik
   tls:
   - hosts:
-    - app.*********sslip.io
+    - app.localhost
     secretName: sample-app-tls
   rules:
-  - host: app.*********sslip.io
+  - host: app.localhost
     http:
       paths:
       - path: /
         pathType: Prefix
-            backend:
-              service:
-                name: sample-app-stable
-                port:
-                  number: 80
+        backend:
+          service:
+            name: sample-app-stable
+            port:
+              number: 80
   # Fallback rule for direct access via LoadBalancer
   - http:
       paths:
