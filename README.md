@@ -1,5 +1,5 @@
 # apqx-platform
-On-Prem GitOps App Platform (Mini)
+On-Prem GitOps App Platform (Mini) - Self-hosted CI enabled ✅
 
 A complete GitOps platform for on-premises Kubernetes deployments with security, automation, and observability best practices. Features k3d, Argo CD, Traefik, Kyverno, and Tailscale integration.
 
