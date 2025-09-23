@@ -134,8 +134,7 @@ jobs:
     needs: [test, lint]  # security not required for build
     if: >
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      needs.test.result == 'success' && needs.lint.result == 'success' &&
-      env.ACT != 'true'
+      needs.test.result == 'success' && needs.lint.result == 'success'
     outputs:
       digest: ${{ steps.build.outputs.digest }}
       image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
@@ -209,8 +208,7 @@ jobs:
     needs: [build]
     if: >
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      needs.build.result == 'success' &&
-      env.ACT != 'true'
+      needs.build.result == 'success'
     continue-on-error: true
     steps:
       - name: Run Trivy vulnerability scanner (image)
