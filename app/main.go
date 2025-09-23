@@ -19,6 +19,7 @@ import (
 type AppInfo struct {
 	Name      string    `json:"name"`
 	Version   string    `json:"version"`
+	BuildSHA  string    `json:"build_sha"`
 	GoVersion string    `json:"go_version"`
 	Platform  string    `json:"platform"`
 	StartTime time.Time `json:"start_time"`
@@ -28,6 +29,7 @@ type AppInfo struct {
 var (
 	appName   = "sample-app"
 	version   = "1.0.0"
+	buildSHA  = "dev" // Will be injected at build time
 	startTime = time.Now()
 )
 
@@ -188,6 +190,7 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 	info := AppInfo{
 		Name:      appName,
 		Version:   version,
+		BuildSHA:  buildSHA,
 		GoVersion: runtime.Version(),
 		Platform:  fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
 		StartTime: startTime,
@@ -208,6 +211,7 @@ func statusHandler(w http.ResponseWriter, r *http.Request) {
 		"timestamp":   time.Now().Format(time.RFC3339),
 		"application": appName,
 		"version":     version,
+		"build_sha":   buildSHA,
 		"endpoints": []string{
 			"/health",
 			"/ready",

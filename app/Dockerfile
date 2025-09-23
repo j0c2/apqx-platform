@@ -4,6 +4,9 @@
 # Build stage
 FROM golang:1.21-alpine AS builder
 
+# Build arguments
+ARG BUILD_SHA=dev
+
 # Install dependencies and create non-root user in single layer
 WORKDIR /build
 RUN apk --no-cache add ca-certificates git && \
@@ -18,10 +21,10 @@ RUN go mod download && go mod verify
 # Copy source code
 COPY . .
 
-# Build the application with security flags
+# Build the application with security flags and inject build SHA
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -a -installsuffix cgo \
-    -ldflags '-extldflags "-static" -s -w' \
+    -ldflags "-extldflags '-static' -s -w -X 'main.buildSHA=${BUILD_SHA}'" \
     -o main .
 
 # Production stage - minimal distroless image
