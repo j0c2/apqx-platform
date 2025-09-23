@@ -1,19 +1,53 @@
+variable "server_count" {
+  description = "Number of k3d server nodes"
+  type        = number
+  default     = 1
+}
+
+variable "agent_count" {
+  description = "Number of k3d agent nodes"
+  type        = number
+  default     = 1
+}
+
+variable "http_host_port" {
+  description = "Host port mapped to the k3d load balancer's port 80"
+  type        = number
+  default     = 80
+}
+
+variable "https_host_port" {
+  description = "Host port mapped to the k3d load balancer's port 443"
+  type        = number
+  default     = 443
+}
+
 locals {
   cluster_name    = "k3d-onprem"
   kubeconfig_path = pathexpand("~/.kube/config")
+
+  # Fingerprint of critical cluster config to force recreation when changed
+  cluster_config_fingerprint = sha1(jsonencode({
+    servers = var.server_count
+    agents  = var.agent_count
+    ports   = {
+      http  = var.http_host_port
+      https = var.https_host_port
+    }
+  }))
 }
 
 resource "null_resource" "k3d_cluster" {
-  # Create cluster (1 server, 1 agent; expose 80/443 on agent:0)
+  # Create cluster (parameterized counts; expose HTTP/HTTPS on load balancer)
   provisioner "local-exec" {
     command = <<-EOT
       set -euo pipefail
       if ! k3d cluster list | grep -q "^${local.cluster_name}\\b"; then
         k3d cluster create ${local.cluster_name} \
-          --servers 1 \
-          --agents 1 \
-          --port "80:80@loadbalancer" \
-          --port "443:443@loadbalancer" \
+          --servers ${var.server_count} \
+          --agents ${var.agent_count} \
+          --port "${var.http_host_port}:80@loadbalancer" \
+          --port "${var.https_host_port}:443@loadbalancer" \
           --wait
       else
         echo "Cluster ${local.cluster_name} already exists; skipping create"
@@ -34,10 +68,11 @@ resource "null_resource" "k3d_cluster" {
   # Destroy cluster
   provisioner "local-exec" {
     when    = destroy
-    command = "k3d cluster delete k3d-onprem || true"
+    command = "k3d cluster delete ${local.cluster_name} || true"
   }
 
-  triggers = {
+triggers = {
     cluster_name = local.cluster_name
+    fp           = local.cluster_config_fingerprint
   }
 }
