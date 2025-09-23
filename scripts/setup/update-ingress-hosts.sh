@@ -4,11 +4,23 @@ set -euo pipefail
 # Updates ingress hosts and TLS hosts to current LOCAL_IP for sslip.io
 # Usage: scripts/setup/update-ingress-hosts.sh
 
-LOCAL_IP=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head -1)
-if [[ -z "${LOCAL_IP:-}" ]]; then
+# Allow override via env var
+if [[ -n "${LOCAL_IP:-}" ]]; then
+  DETECTED_IP="$LOCAL_IP"
+else
+  # Prefer default route interface on macOS, fallback to Linux, finally generic
+  DETECTED_IP=$( \
+    (route -n get default 2>/dev/null | awk '/interface:/{print $2}' | xargs -I{} ipconfig getifaddr {} 2>/dev/null) || \
+    (ip route get 1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") {print $(i+1); exit}}') || \
+    (ifconfig | awk '/inet /{print $2}' | grep -Ev '^(127\.|169\.254\.|100\.)' | head -1) \
+  )
+fi
+
+if [[ -z "${DETECTED_IP:-}" ]]; then
   echo "Could not determine LOCAL_IP" >&2
   exit 1
 fi
+LOCAL_IP="$DETECTED_IP"
 
 echo "Updating ingress hosts to *.${LOCAL_IP}.sslip.io"
 

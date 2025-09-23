@@ -92,9 +92,13 @@ up:
 	@echo "$(BLUE)Step 4: Applying ClusterIssuer and dynamic sslip.io Certificates...$(NC)"
 	@kubectl apply -f gitops/infrastructure/cert-manager/cluster-issuer-selfsigned.yaml
 	@kubectl get ns sample-app >/dev/null 2>&1 || kubectl create ns sample-app
-	@LOCAL_IP=$$(ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $$2}' | head -1); \
+	@LOCAL_IP=$$( \
+		(route -n get default 2>/dev/null | awk '/interface:/{print $$2}' | xargs -I{} ipconfig getifaddr {} 2>/dev/null) \
+		|| (ip route get 1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($$i=="src") {print $$(i+1); exit}}') \
+		|| (ifconfig | awk '/inet /{print $$2}' | grep -Ev '^(127\.|169\.254\.|100\.)' | head -1) \
+	); \
 	echo "Using LOCAL_IP=$$LOCAL_IP for sslip.io certs"; \
-	sed -E 's/app\.[0-9\.-]+\.sslip\.io/app.'"$$LOCAL_IP"'.sslip.io/g; s/argocd\.[0-9\.-]+\.sslip\.io/argocd.'"$$LOCAL_IP"'.sslip.io/g; s/rollouts\.[0-9\.-]+\.sslip\.io/rollouts.'"$$LOCAL_IP"'.sslip.io/g' gitops/infrastructure/cert-manager/certificates-sslip.yaml | kubectl apply -f -
+	sed -E 's/app\\.[0-9\\.-]+\\.sslip\\.io/app.'"$$LOCAL_IP"'.sslip.io/g; s/argocd\\.[0-9\\.-]+\\.sslip\\.io/argocd.'"$$LOCAL_IP"'.sslip.io/g; s/rollouts\\.[0-9\\.-]+\\.sslip\\.io/rollouts.'"$$LOCAL_IP"'.sslip.io/g' gitops/infrastructure/cert-manager/certificates-sslip.yaml | kubectl apply -f -
 	@echo "$(BLUE)Step 5: Waiting for certificates to be Ready...$(NC)"
 	@kubectl wait --for=condition=Ready certificate/app-sslip -n sample-app --timeout=120s || true
 	@kubectl wait --for=condition=Ready certificate/argocd-sslip -n argocd --timeout=120s || true

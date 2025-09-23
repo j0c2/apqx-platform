@@ -14,11 +14,14 @@ spec:
           - resources:
               kinds:
                 - Deployment
+      exclude:
+        any:
+          - resources:
               namespaces:
-                - "!kube-system"
-                - "!cert-manager"
-                - "!kyverno"
-                - "!argocd"
+                - kube-system
+                - cert-manager
+                - kyverno
+                - argocd
       validate:
         message: "Liveness/Readiness probes are required"
         pattern:
