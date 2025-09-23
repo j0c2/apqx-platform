@@ -1,5 +1,6 @@
 # Tailscale Operator Helm values - minimal configuration
 # OAuth authentication for MagicDNS service exposure
+# Tailscale namespace excluded from Kyverno security policies
 
 oauth:
   # Reference precreated secret to avoid putting credentials in values
@@ -7,7 +8,5 @@ oauth:
 
 operatorConfig:
   defaultProxyClass: ""
-  # Disable operator tags to avoid ACL configuration requirements
-  operatorTags: ""
-
-# keep defaults minimal; we'll use Service annotations to expose the app
+  # Use empty tags to avoid ACL configuration requirements
+  defaultTags: []

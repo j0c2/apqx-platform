@@ -22,6 +22,7 @@ spec:
                 - cert-manager
                 - kyverno
                 - argocd
+                - tailscale
       validate:
         message: "Liveness/Readiness probes are required"
         pattern:

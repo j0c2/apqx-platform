@@ -22,6 +22,7 @@ spec:
                 - cert-manager
                 - kyverno
                 - argocd
+                - tailscale
       validate:
         message: "Images must be pinned by digest (no mutable tags)"
         cel:
