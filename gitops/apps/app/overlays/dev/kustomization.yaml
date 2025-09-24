@@ -32,7 +32,7 @@ patches:
 
 # Image configuration - digest will be updated by CI pipeline
 images:
-- digest: sha256:0e160af1f8c5a8bd5e9384056c00f55bab626704f07a2a011ca22ac871f56bdb
+- digest: sha256:7f69039539f3e19958d579576ab79ca93995ff2065a9d8361db86ba885ae3f3f
   name: ghcr.io/j0c2/apqx-platform/sample-app
 
 labels:
