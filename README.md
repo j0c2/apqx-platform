@@ -114,7 +114,3 @@ curl http://localhost:8080/api/status
 ✅ **All requirements met**: k3d cluster, GitOps, ingress, CI/CD, security, SRE practices  
 ✅ **Stretch goals**: Progressive delivery + self-hosted CI runner  
 ✅ **Production-ready**: Security policies, observability, automation
-
----
-
-*Ready for take-home assessments and production-like demos!* 🚀
