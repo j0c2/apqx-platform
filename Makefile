@@ -66,13 +66,34 @@ up: bootstrap
 	@kubectl apply -f gitops/apps/app/application.yaml || echo "$(YELLOW)Sample app already exists$(NC)"
 	@echo "$(BLUE)Step 5: Updating ingress hosts with current IP...$(NC)"
 	@$(MAKE) update-ingress-hosts
-	@echo "$(BLUE)Step 6: Verifying service access...$(NC)"
-	@$(MAKE) test-access
-	@echo "$(GREEN)✅ Ingresses and Certificates are ready$(NC)"
-	@echo "$(BLUE)Step 7: Finalizing setup and opening UIs...$(NC)"
+	@echo "$(BLUE)Step 6: Ensuring service access and port-forwarding...$(NC)"
+	@$(MAKE) ensure-access
+	@echo "$(BLUE)Step 7: Testing service connectivity...$(NC)"
+	@echo "🧪 Testing service endpoint connectivity..."
+	@LOCAL_IP=$$($(MAKE) --no-print-directory _get-local-ip); \
+	curl -s -o /dev/null -w "%{http_code}" -H "Host: app.$$LOCAL_IP.sslip.io" http://localhost:8090/api/status | grep -q "200" && echo "  $(GREEN)✓ Sample App$(NC)" || echo "  $(RED)✗ Sample App$(NC)"; \
+	curl -s -o /dev/null -w "%{http_code}" -H "Host: argocd.$$LOCAL_IP.sslip.io" http://localhost:8090/ | grep -q "200" && echo "  $(GREEN)✓ ArgoCD$(NC)" || echo "  $(RED)✗ ArgoCD$(NC)"; \
+	curl -s -o /dev/null -w "%{http_code}" -H "Host: rollouts.$$LOCAL_IP.sslip.io" http://localhost:8090/rollouts/ | grep -q "200" && echo "  $(GREEN)✓ Argo Rollouts$(NC)" || echo "  $(RED)✗ Argo Rollouts$(NC)"
+	@echo "$(GREEN)✅ All services are accessible$(NC)"
+	@echo "$(BLUE)Step 8: Platform Status Summary...$(NC)"
+	@echo ""
+	@echo "$(BLUE)📊 apqx-platform Status$(NC)"
+	@echo "========================"
+	@k3d cluster list | grep -q '$(CLUSTER_NAME)' && echo "$(GREEN)✓ k3d cluster: $(CLUSTER_NAME)$(NC)" || echo "$(RED)✗ k3d cluster not found$(NC)"
+	@echo ""
+	@echo "$(GREEN)🌐 Service URLs:$(NC)"
+	@LOCAL_IP=$$($(MAKE) --no-print-directory _get-local-ip) ; \
+	echo "  🚀 Sample App:    https://app.$$LOCAL_IP.sslip.io"; \
+	echo "  🎛️  ArgoCD:          https://argocd.$$LOCAL_IP.sslip.io"; \
+	echo "  📊 Argo Rollouts:   https://rollouts.$$LOCAL_IP.sslip.io/rollouts/"; \
+	echo "  🔒 Tailscale App: https://app-onprem.tail13bd49.ts.net";
+	@echo ""
+	@echo "$(YELLOW)🔑 ArgoCD Login:$(NC)" \
+	&& echo "  Username: admin" \
+	&& echo "  Password: $$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' 2>/dev/null | base64 -d 2>/dev/null || echo 'not-ready-yet')"
+	@echo "$(BLUE)Step 9: Opening service UIs...$(NC)"
 	@$(MAKE) open-uis
 	@echo "$(GREEN)🎉 Platform deployment complete!$(NC)"
-	@$(MAKE) --no-print-directory _show-deployment-summary
 
 ## destroy: Tear down the complete platform with confirmation
 destroy:
@@ -320,26 +341,3 @@ _open-url:
 	echo "$(GREEN)Opening $(name) at $$URL...$(NC)"; \
 	open "$$URL" || true
 
-# Internal helper to show deployment summary
-_show-deployment-summary:
-	@echo ""
-	@echo "$(BLUE)📋 Deployment Summary$(NC)"
-	@echo "====================="
-	@LOCAL_IP=$$($(MAKE) --no-print-directory _get-local-ip); \
-	echo "$(GREEN)✓ Core Services:$(NC)"; \
-	echo "  🚀 Sample App:    https://app.$$LOCAL_IP.sslip.io"; \
-	echo "  🎛️  ArgoCD:        https://argocd.$$LOCAL_IP.sslip.io"; \
-	echo "  📊 Argo Rollouts: https://rollouts.$$LOCAL_IP.sslip.io/rollouts/";
-	echo ""; \
-	if kubectl get namespace tailscale >/dev/null 2>&1; then \
-	    echo "$(GREEN)✓ Tailscale Integration: Enabled$(NC)"; \
-	    echo "  🔒 Tailscale App: Available via MagicDNS"; \
-	else \
-	    echo "$(YELLOW)ℹ️  Tailscale Integration: Disabled$(NC)"; \
-	    echo "  💡 To enable: Set enable_tailscale=true in terraform.tfvars"; \
-	fi; \
-	echo ""; \
-	echo "$(YELLOW)ArgoCD Login:$(NC)"; \
-	echo "  Username: admin"; \
-	echo "  Password: $$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' 2>/dev/null | base64 -d 2>/dev/null || echo 'not-ready-yet')"; \
-	echo ""
