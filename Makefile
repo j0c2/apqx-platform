@@ -1,483 +1,328 @@
-# Automation targets for deploying and managing the On-Prem GitOps App Platform
+# ====================================================================================
+#                           Configuration Variables
+# ====================================================================================
 
-.PHONY: help up destroy quick-destroy verify-deployment validate plan diff sync status clean dev test lint security bootstrap check-deps install-deps runner-config runner-up runner-down runner-status argocd rollouts app tailscale-apply update-ingress-hosts
-
-# Default target
-.DEFAULT_GOAL := help
-
-# Variables
-TERRAFORM_DIR := infra/terraform
-CLUSTER_NAME := apqx-platform
+# Docker & Kubernetes
+CLUSTER_NAME    := apqx-platform
 KUBECONFIG_PATH := ~/.kube/config
 
+# Terraform
+TERRAFORM_DIR := infra/terraform
+
 # Colors for output
-RED := \033[0;31m
-GREEN := \033[0;32m
+RED    := \033[0;31m
+GREEN  := \033[0;32m
 YELLOW := \033[1;33m
-BLUE := \033[0;34m
-NC := \033[0m # No Color
+BLUE   := \033[0;34m
+NC     := \033[0m # No Color
+
+# ====================================================================================
+#                                Phony Targets
+# ====================================================================================
+
+.PHONY: help up destroy quick-destroy status verify-deployment validate plan diff set-deployment-strategy access stop-access update-ingress-hosts ensure-access argocd rollouts app open-uis dev test test-access lint security kyverno-test bootstrap check-deps install-deps clean runner-up runner-down runner-config runner-status
+
+
+# ====================================================================================
+#                                Help & Information
+# ====================================================================================
+
+.DEFAULT_GOAL := help
 
 ## help: Show this help message
 help:
 	@echo "$(BLUE)apqx-platform - On-Prem GitOps App Platform$(NC)"
 	@echo ""
-	@echo "$(GREEN)Available targets:$(NC)"
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*?##/ { printf "  $(YELLOW)%-15s$(NC) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo "$(GREEN)Usage:$(NC)"
+	@echo "  make [target]"
 	@echo ""
-	@echo "$(GREEN)Quick start:$(NC)"
-	@echo "  1. make check-deps    # Check required dependencies"
-	@echo "  2. make bootstrap     # Install missing dependencies"  
-	@echo "  3. make up           # Deploy the complete platform"
-	@echo "  4. make status       # Check deployment status"
-	@echo "  5. make quick-destroy # Fast cleanup (for development)"
-	@echo "  6. make destroy      # Safe cleanup with confirmation"
+	@echo "$(GREEN)Available targets:$(NC)"
+	@awk -F':.*##' '/^[a-zA-Z_-]+:.*?##/ {printf "  $(YELLOW)%-25s$(NC) %s\\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 
-## check-deps: Check if required dependencies are installed
-check-deps:
-	@echo "$(BLUE)Checking required dependencies...$(NC)"
-	@command -v docker >/dev/null 2>&1 || { echo "$(RED)✗ Docker is required but not installed$(NC)"; exit 1; }
-	@echo "$(GREEN)✓ Docker$(NC)"
-	@command -v terraform >/dev/null 2>&1 || { echo "$(RED)✗ Terraform is required but not installed$(NC)"; exit 1; }
-	@echo "$(GREEN)✓ Terraform$(NC)"
-	@command -v kubectl >/dev/null 2>&1 || { echo "$(RED)✗ kubectl is required but not installed$(NC)"; exit 1; }
-	@echo "$(GREEN)✓ kubectl$(NC)"
-	@command -v helm >/dev/null 2>&1 || { echo "$(RED)✗ Helm is required but not installed$(NC)"; exit 1; }
-	@echo "$(GREEN)✓ Helm$(NC)"
-	@command -v k3d >/dev/null 2>&1 || { echo "$(YELLOW)⚠ k3d not found, will be installed automatically$(NC)"; }
-	@command -v tailscale >/dev/null 2>&1 || { echo "$(YELLOW)⚠ Tailscale not found, please install manually$(NC)"; }
-	@echo "$(GREEN)✓ Dependency check complete$(NC)"
 
-## install-deps: Install missing dependencies (macOS)
-install-deps:
-	@echo "$(BLUE)Installing missing dependencies...$(NC)"
-	@if ! command -v brew >/dev/null 2>&1; then \
-		echo "$(RED)Homebrew is required for automatic dependency installation$(NC)"; \
-		exit 1; \
-	fi
-	@command -v docker >/dev/null 2>&1 || { echo "$(YELLOW)Installing Docker...$(NC)"; brew install --cask docker; }
-	@command -v terraform >/dev/null 2>&1 || { echo "$(YELLOW)Installing Terraform...$(NC)"; brew install terraform; }
-	@command -v kubectl >/dev/null 2>&1 || { echo "$(YELLOW)Installing kubectl...$(NC)"; brew install kubectl; }
-	@command -v helm >/dev/null 2>&1 || { echo "$(YELLOW)Installing Helm...$(NC)"; brew install helm; }
-	@command -v k3d >/dev/null 2>&1 || { echo "$(YELLOW)Installing k3d...$(NC)"; brew install k3d; }
-	@echo "$(GREEN)✓ Dependencies installed$(NC)"
-	@echo "$(YELLOW)Note: Please install Tailscale manually from https://tailscale.com/download$(NC)"
+# ====================================================================================
+#                            Platform Lifecycle
+# ====================================================================================
 
-## bootstrap: Full bootstrap process including dependency check
-bootstrap: check-deps
-	@echo "$(BLUE)Bootstrapping apqx-platform...$(NC)"
-	@if ! tailscale status >/dev/null 2>&1; then \
-		echo "$(YELLOW)⚠ Tailscale not running. Please run 'tailscale login' first$(NC)"; \
-	else \
-		echo "$(GREEN)✓ Tailscale is running$(NC)"; \
-	fi
-	@echo "$(GREEN)✓ Bootstrap complete - ready to deploy!$(NC)"
-
-## up: Deploy the complete platform (cluster + apps + GitOps)
-up:
+## up: Deploy the complete platform and open service UIs
+up: bootstrap
 	@echo "$(BLUE)🚀 Deploying complete apqx-platform...$(NC)"
-	@echo "$(BLUE)Step 1: Terraform infrastructure deployment...$(NC)"
-	terraform -chdir=infra/terraform init
-	terraform -chdir=infra/terraform apply -auto-approve
+	@echo "$(BLUE)Step 1: Checking Terraform configuration...$(NC)"
+	@if [ -f $(TERRAFORM_DIR)/terraform.tfvars ]; then \
+	    echo "$(GREEN)✓ Using terraform.tfvars for configuration$(NC)"; \
+	else \
+	    echo "$(YELLOW)ℹ️  No terraform.tfvars found - using defaults (Tailscale disabled)$(NC)"; \
+	fi
+	@echo "$(BLUE)Step 2: Deploying infrastructure via Terraform...$(NC)"
+	@terraform -chdir=$(TERRAFORM_DIR) apply -auto-approve
 	@echo "$(GREEN)✅ Infrastructure deployed$(NC)"
-	@echo "kubectl context:"
-	@kubectl config current-context
-	@echo "$(BLUE)Step 2: Waiting for ArgoCD to be ready...$(NC)"
+	@echo "$(BLUE)Step 3: Waiting for ArgoCD to be ready...$(NC)"
 	@kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
 	@echo "$(GREEN)✅ ArgoCD is ready$(NC)"
-	@echo "$(BLUE)Step 3: Deploying GitOps applications...$(NC)"
+	@echo "$(BLUE)Step 4: Deploying GitOps application definitions...$(NC)"
 	@kubectl apply -f gitops/apps/management/cert-manager-infrastructure.yaml
 	@kubectl apply -f gitops/apps/management/ingresses.yaml
 	@kubectl apply -f gitops/apps/argocd/kyverno-app.yaml
-	@kubectl apply -f gitops/apps/app/application.yaml || echo "$(YELLOW)Sample app application may already exist$(NC)"
-	@echo "$(BLUE)Step 4: Applying ClusterIssuer and dynamic sslip.io Certificates...$(NC)"
-	@kubectl apply -f gitops/infrastructure/cert-manager/cluster-issuer-selfsigned.yaml
-	@kubectl get ns sample-app >/dev/null 2>&1 || kubectl create ns sample-app
-	@LOCAL_IP=$$( \
-		(route -n get default 2>/dev/null | awk '/interface:/{print $$2}' | xargs -I{} ipconfig getifaddr {} 2>/dev/null) \
-		|| (ip route get 1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($$i=="src") {print $$(i+1); exit}}') \
-		|| (ifconfig | awk '/inet /{print $$2}' | grep -Ev '^(127\.|169\.254\.|100\.)' | head -1) \
-	); \
-	echo "Using LOCAL_IP=$$LOCAL_IP for sslip.io certs"; \
-	sed -E 's/app\\.[0-9\\.-]+\\.sslip\\.io/app.'"$$LOCAL_IP"'.sslip.io/g; s/argocd\\.[0-9\\.-]+\\.sslip\\.io/argocd.'"$$LOCAL_IP"'.sslip.io/g; s/rollouts\\.[0-9\\.-]+\\.sslip\\.io/rollouts.'"$$LOCAL_IP"'.sslip.io/g' gitops/infrastructure/cert-manager/certificates-sslip.yaml | kubectl apply -f -
-	@echo "$(BLUE)Step 5: Waiting for certificates to be Ready...$(NC)"
-	@kubectl wait --for=condition=Ready certificate/app-sslip -n sample-app --timeout=120s || true
-	@kubectl wait --for=condition=Ready certificate/argocd-sslip -n argocd --timeout=120s || true
-	@kubectl wait --for=condition=Ready certificate/rollouts-sslip -n argo-rollouts --timeout=120s || true
-	@echo "$(BLUE)Step 6: Updating Ingress hosts to current LOCAL_IP...$(NC)"
-	@chmod +x scripts/setup/update-ingress-hosts.sh || true
-	@scripts/setup/update-ingress-hosts.sh
-	@echo "$(BLUE)Step 7: Waiting briefly for Traefik to pick up routes...$(NC)"
-	@sleep 15
-	@echo "$(GREEN)✅ Platform deployment complete$(NC)"
-	@echo "$(BLUE)Step 8: Running verification...$(NC)"
-	@$(MAKE) verify-deployment
+	@kubectl apply -f gitops/apps/app/application.yaml || echo "$(YELLOW)Sample app already exists$(NC)"
+	@echo "$(BLUE)Step 5: Updating ingress hosts with current IP...$(NC)"
+	@$(MAKE) update-ingress-hosts
+	@echo "$(BLUE)Step 6: Verifying service access...$(NC)"
+	@$(MAKE) test-access
+	@echo "$(GREEN)✅ Ingresses and Certificates are ready$(NC)"
+	@echo "$(BLUE)Step 7: Finalizing setup and opening UIs...$(NC)"
+	@$(MAKE) open-uis
+	@echo "$(GREEN)🎉 Platform deployment complete!$(NC)"
+	@$(MAKE) --no-print-directory _show-deployment-summary
 
-## destroy: Tear down the complete platform (complete cleanup)
+## destroy: Tear down the complete platform with confirmation
 destroy:
-	@echo "$(BLUE)🗑️  Complete platform teardown...$(NC)"
-	@echo "$(YELLOW)This will destroy everything including k3d cluster$(NC)"
+	@echo "$(YELLOW)This will destroy everything including the k3d cluster.$(NC)"
 	@read -p "Are you sure? (y/N): " confirm && [ "$$confirm" = "y" ] || { echo "Cancelled"; exit 1; }
-	@echo "$(BLUE)Stopping any port forwards...$(NC)"
-	@pkill -f "kubectl port-forward.*traefik" 2>/dev/null || true
-	@echo "$(BLUE)Destroying Terraform resources...$(NC)"
-	@terraform -chdir=infra/terraform destroy -auto-approve || true
-	@echo "$(BLUE)Force delete k3d cluster if it exists...$(NC)"
-	@k3d cluster delete k3d-onprem 2>/dev/null || true
-	@echo "$(BLUE)Cleaning up Terraform state...$(NC)"
-	@rm -f infra/terraform/.terraform.lock.hcl
-	@rm -rf infra/terraform/.terraform/
-	@rm -f infra/terraform/tfplan
-	@echo "$(BLUE)Cleaning Docker system...$(NC)"
-	@docker system prune -f >/dev/null 2>&1 || true
-	@echo "$(GREEN)✅ Complete teardown finished$(NC)"
+	@$(MAKE) quick-destroy
 
-## quick-destroy: Fast teardown without confirmation (for development)
+## quick-destroy: Tear down the complete platform without confirmation
 quick-destroy:
-	@echo "$(BLUE)🗑️  Quick platform teardown...$(NC)"
-	@echo "$(BLUE)Stopping any port forwards...$(NC)"
+	@echo "$(BLUE)🗑️  Tearing down platform...$(NC)"
 	@pkill -f "kubectl port-forward.*traefik" 2>/dev/null || true
-	@echo "$(BLUE)Destroying Terraform resources...$(NC)"
-	@terraform -chdir=infra/terraform destroy -auto-approve || true
-	@echo "$(BLUE)Force delete k3d cluster if it exists...$(NC)"
-	@k3d cluster delete k3d-onprem 2>/dev/null || true
-	@echo "$(GREEN)✅ Quick teardown finished$(NC)"
+	@terraform -chdir=$(TERRAFORM_DIR) destroy -auto-approve || true
+	@k3d cluster delete $(CLUSTER_NAME) 2>/dev/null || true
+	@echo "$(GREEN)✅ Teardown finished$(NC)"
 
-## validate: Validate all configurations without applying
-validate: check-deps
-	@echo "$(BLUE)Validating configurations...$(NC)"
-	@terraform -chdir=$(TERRAFORM_DIR) init -backend=false
-	@terraform -chdir=$(TERRAFORM_DIR) validate
-	@echo "$(GREEN)✓ Terraform validation passed$(NC)"
-	@find gitops/ -name "*.yaml" -exec kubectl --dry-run=client apply -f {} \; >/dev/null 2>&1
-	@echo "$(GREEN)✓ Kubernetes manifests validation passed$(NC)"
-	@echo "$(GREEN)✓ All validations passed$(NC)"
 
-## tailscale-apply: Apply only tailscale namespace, secret, and operator release\n tailscale-apply:\n\t@terraform -chdir=infra/terraform apply -target=kubernetes_namespace.tailscale -target=kubernetes_secret.tailscale_operator_oauth -target=helm_release.tailscale_operator -auto-approve\n\n## plan: Show Terraform deployment plan
-plan: check-deps
-	@echo "$(BLUE)Generating deployment plan...$(NC)"
-	@terraform -chdir=$(TERRAFORM_DIR) init
-	@terraform -chdir=$(TERRAFORM_DIR) plan
+# ====================================================================================
+#                             Deployment & GitOps
+# ====================================================================================
+
+## set-deployment-strategy: Set app deployment strategy (e.g., make set-deployment-strategy to=rollout)
+set-deployment-strategy:
+	@if [ "$(to)" = "deployment" ]; then \
+	    echo "$(BLUE)Switching to standard Deployment...$(NC)"; \
+	    kubectl patch application -n argocd sample-app --type merge -p '{"spec":{"source":{"path":"gitops/apps/app/base"}}}'; \
+	    echo "$(GREEN)✓ Switched. Syncing ArgoCD application...$(NC)"; \
+	    kubectl patch application -n argocd sample-app -p '{"operation":{"sync":{}}}' --type merge || true; \
+	elif [ "$(to)" = "rollout" ]; then \
+	    echo "$(BLUE)Switching to Argo Rollout...$(NC)"; \
+	    kubectl patch application -n argocd sample-app --type merge -p '{"spec":{"source":{"path":"gitops/apps/app/overlays/dev"}}}'; \
+	    echo "$(GREEN)✓ Switched. Syncing ArgoCD application...$(NC)"; \
+	    kubectl patch application -n argocd sample-app -p '{"operation":{"sync":{}}}' --type merge || true; \
+	else \
+	    echo "$(RED)Invalid strategy. Use 'deployment' or 'rollout' for the 'to' argument.$(NC)"; \
+	fi
 
 ## diff: Show differences between Git and cluster state
 diff:
-	@echo "$(BLUE)Checking GitOps drift...$(NC)"
-	@if ! kubectl get namespace argocd >/dev/null 2>&1; then \
-		echo "$(YELLOW)Argo CD not deployed yet$(NC)"; \
-	else \
-		kubectl get applications -n argocd -o wide; \
-		echo "$(GREEN)Use Argo CD UI for detailed diff information$(NC)"; \
-	fi
+	@echo "$(BLUE)Checking GitOps application drift...$(NC)"
+	@kubectl get applications -n argocd -o wide
 
-## sync: Force sync of GitOps applications
-sync:
-	@echo "$(BLUE)Syncing GitOps applications...$(NC)"
-	@if ! kubectl get namespace argocd >/dev/null 2>&1; then \
-		echo "$(YELLOW)Argo CD not deployed yet$(NC)"; \
-	else \
-		kubectl patch application -n argocd sample-app -p '{"operation":{"sync":{}}}' --type merge || true; \
-		kubectl patch application -n argocd root-app -p '{"operation":{"sync":{}}}' --type merge || true; \
-		echo "$(GREEN)✓ Sync initiated$(NC)"; \
-	fi
 
-## verify-deployment: Verify complete platform deployment
-verify-deployment:
-	@echo "$(BLUE)🔍 Verifying platform deployment...$(NC)"
-	@echo "$(BLUE)Checking cluster status...$(NC)"
-	@kubectl get nodes -o wide
-	@echo "$(BLUE)Checking ArgoCD applications...$(NC)"
-	@kubectl get applications -n argocd
-	@echo "$(BLUE)Checking certificates...$(NC)"
-	@kubectl get certificates -A
-	@echo "$(BLUE)Checking ingresses...$(NC)"
-	@kubectl get ingress -A
-	@echo "$(BLUE)Ensuring sample app is Ready...$(NC)"
-	@kubectl rollout status -n sample-app deploy/sample-app --timeout=120s || true
-	@echo "$(BLUE)Testing HTTPS endpoints...$(NC)"
-	@TRAEFIK_IP=$$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null); \
-	if [ -n "$$TRAEFIK_IP" ]; then \
-		ATTEMPTS=5; SLEEP=5; \
-		for i in $$(seq 1 $$ATTEMPTS); do \
-		  echo "Attempt $$i/$${ATTEMPTS}..."; \
-		  ok1=ok; ok2=ok; ok3=ok; \
-		  curl -kI https://app.$$TRAEFIK_IP.sslip.io --max-time 10 >/dev/null 2>&1 || ok1=; \
-		  curl -kI https://argocd.$$TRAEFIK_IP.sslip.io --max-time 10 >/dev/null 2>&1 || ok2=; \
-		  curl -kI https://rollouts.$$TRAEFIK_IP.sslip.io/rollouts/ --max-time 10 >/dev/null 2>&1 || ok3=; \
-		  [ -n "$$ok1$$ok2$$ok3" ] && break; \
-		  sleep $$SLEEP; \
-		done; \
-		[ -n "$$ok1" ] && echo "$(GREEN)✅ Sample App HTTPS working$(NC)" || echo "$(YELLOW)⚠ Sample App HTTPS not ready$(NC)"; \
-		[ -n "$$ok2" ] && echo "$(GREEN)✅ ArgoCD HTTPS working$(NC)" || echo "$(YELLOW)⚠ ArgoCD HTTPS not ready$(NC)"; \
-		[ -n "$$ok3" ] && echo "$(GREEN)✅ Rollouts HTTPS working$(NC)" || echo "$(YELLOW)⚠ Rollouts HTTPS not ready$(NC)"; \
-	else \
-		echo "$(YELLOW)⚠ Traefik IP not available yet$(NC)"; \
-	fi
-	@echo "$(GREEN)🎯 Verification complete - check above for any issues$(NC)"
+# ====================================================================================
+#                             Service Access & Status
+# ====================================================================================
 
-## status: Show platform status
-status:
+## status: Show platform status and service URLs
+status: ensure-access
 	@echo "$(BLUE)apqx-platform Status$(NC)"
 	@echo "===================="
+	@k3d cluster list | grep -q '$(CLUSTER_NAME)' && echo "$(GREEN)✓ k3d cluster: $(CLUSTER_NAME)$(NC)" || echo "$(RED)✗ k3d cluster not found$(NC)"
 	@echo ""
-	@if k3d cluster list | grep -q k3d-onprem; then \
-		echo "$(GREEN)✓ k3d cluster: k3d-onprem$(NC)"; \
-	else \
-		echo "$(RED)✗ k3d cluster not found$(NC)"; \
-	fi
+	@echo "$(GREEN)Service URLs:$(NC)"
+	@TRAEFIK_IP=$$($(MAKE) --no-print-directory _get-traefik-ip) ; \
+	echo "  🚀 Sample App:    https://app.$$TRAEFIK_IP.sslip.io"; \
+	echo "  🎛️  ArgoCD:          https://argocd.$$TRAEFIK_IP.sslip.io"; \
+	echo "  📊 Argo Rollouts:   https://rollouts.$$TRAEFIK_IP.sslip.io/rollouts/"; \
+	echo "  🔒 Tailscale App: https://app-onprem.tail13bd49.ts.net"; \
 	@echo ""
-	@if kubectl get nodes >/dev/null 2>&1; then \
-		echo "$(GREEN)Kubernetes Nodes:$(NC)"; \
-		kubectl get nodes -o wide; \
-		echo ""; \
-	fi
-	@if kubectl get namespace argocd >/dev/null 2>&1; then \
-		echo "$(GREEN)Argo CD Applications:$(NC)"; \
-		kubectl get applications -n argocd -o wide || echo "$(YELLOW)No applications found$(NC)"; \
-		echo ""; \
-	fi
-	@if kubectl get namespace kyverno >/dev/null 2>&1; then \
-		echo "$(GREEN)Kyverno Policies:$(NC)"; \
-		kubectl get clusterpolicies || echo "$(YELLOW)No policies found$(NC)"; \
-		echo ""; \
-	fi
-	@if kubectl get certificates -A >/dev/null 2>&1; then \
-		echo "$(GREEN)TLS Certificates:$(NC)"; \
-		kubectl get certificates -A; \
-		echo ""; \
-	fi
-	@echo "$(GREEN)Service URLs (HTTPS with TLS):$(NC)"
-	@TRAEFIK_IP=$$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "localhost"); \
-	echo "🚀 Sample App: https://app.$$TRAEFIK_IP.sslip.io"; \
-	echo "🎛️  ArgoCD: https://argocd.$$TRAEFIK_IP.sslip.io"; \
-	echo "📊 Argo Rollouts: https://rollouts.$$TRAEFIK_IP.sslip.io/rollouts/"; \
-	echo "🔒 Sample App (Tailscale): https://app-onprem.tail13bd49.ts.net"; \
-	echo ""; \
-	echo "$(YELLOW)💡 ArgoCD Login:$(NC)"; \
-	echo "   Username: admin"; \
-	echo "   Password: $$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' 2>/dev/null | base64 -d 2>/dev/null || echo 'not-ready-yet')"
+	@echo "$(YELLOW)ArgoCD Login:$(NC)" \
+	&& echo "  Username: admin" \
+	&& echo "  Password: $$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' 2>/dev/null | base64 -d 2>/dev/null || echo 'not-ready-yet')"
 
-## dev: Start local development environment
+## verify-deployment: Verify the platform deployment is healthy
+verify-deployment: ensure-access
+	@echo "$(BLUE)🔍 Verifying platform deployment...$(NC)"
+	@kubectl get nodes -o wide
+	@kubectl get applications -n argocd
+	@kubectl get certificates -A
+	@kubectl get ingress -A
+	@echo "$(BLUE)Testing service endpoints...$(NC)"
+	@$(MAKE) test-access
+
+## open-uis: Open all service UIs in the browser
+open-uis: argocd rollouts app
+
+## argocd: Open the ArgoCD UI
+argocd: ensure-access
+	@$(MAKE) --no-print-directory _open-url name="ArgoCD" host="argocd"
+
+## rollouts: Open the Argo Rollouts UI
+rollouts: ensure-access
+	@$(MAKE) --no-print-directory _open-url name="Argo Rollouts" host="rollouts" path="/rollouts/"
+
+## app: Open the Sample App UI
+app: ensure-access
+	@$(MAKE) --no-print-directory _open-url name="Sample App" host="app"
+
+
+# ====================================================================================
+#                             Development & Testing
+# ====================================================================================
+
+## dev: Start local Go development environment
 dev:
-	@echo "$(BLUE)Starting development environment...$(NC)"
-	@cd app && go mod tidy
-	@cd app && go run main.go
+	@echo "$(BLUE)Starting local Go development server...$(NC)"
+	@cd app && go mod tidy && go run main.go
 
-## test: Run all tests
+## test: Run all Go tests and generate coverage report
 test:
-	@echo "$(BLUE)Running tests...$(NC)"
-	@cd app && go test -v -race -coverprofile=coverage.out ./...
-	@cd app && go tool cover -html=coverage.out -o coverage.html
-	@echo "$(GREEN)✓ Tests complete - see app/coverage.html$(NC)"
+	@echo "$(BLUE)Running Go tests...$(NC)"
+	@cd app && go test -v -race -coverprofile=coverage.out ./... && go tool cover -html=coverage.out -o coverage.html
+	@echo "$(GREEN)✓ Tests complete. Report: app/coverage.html$(NC)"
+
+## test-access: Test connectivity to service endpoints
+test-access: ensure-access
+	@echo "🧪 Testing service endpoint connectivity..."
+	@TRAEFIK_IP=$$($(MAKE) --no-print-directory _get-traefik-ip); \
+	curl -s -o /dev/null -w "%{http_code}" -H "Host: app.$$TRAEFIK_IP.sslip.io" http://localhost:8090/api/status | grep -q "200" && echo "  $(GREEN)✓ Sample App$(NC)" || echo "  $(RED)✗ Sample App$(NC)"; \
+	curl -s -o /dev/null -w "%{http_code}" -H "Host: argocd.$$TRAEFIK_IP.sslip.io" http://localhost:8090/ | grep -q "200" && echo "  $(GREEN)✓ ArgoCD$(NC)" || echo "  $(RED)✗ ArgoCD$(NC)"; \
+	curl -s -o /dev/null -w "%{http_code}" -H "Host: rollouts.$$TRAEFIK_IP.sslip.io" http://localhost:8090/rollouts/ | grep -q "200" && echo "  $(GREEN)✓ Argo Rollouts$(NC)" || echo "  $(RED)✗ Argo Rollouts$(NC)"
 
 ## lint: Lint all code and configurations
 lint:
-	@echo "$(BLUE)Linting code and configurations...$(NC)"
-	@command -v golangci-lint >/dev/null 2>&1 || { echo "$(YELLOW)Installing golangci-lint...$(NC)"; go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; }
-	@cd app && golangci-lint run
-	@echo "$(GREEN)✓ Go linting passed$(NC)"
-	@command -v yamllint >/dev/null 2>&1 || { echo "$(YELLOW)Installing yamllint...$(NC)"; pip install yamllint; }
-	@yamllint -d relaxed gitops/ || echo "$(YELLOW)⚠ YAML linting warnings$(NC)"
-	@echo "$(GREEN)✓ YAML linting complete$(NC)"
-	@cd $(TERRAFORM_DIR) && terraform fmt -check -recursive
-	@echo "$(GREEN)✓ Terraform formatting check passed$(NC)"
+	@echo "$(BLUE)Linting all code...$(NC)"
+	@golangci-lint run ./app/... && echo "$(GREEN)✓ Go lint passed$(NC)"
+	@yamllint -d relaxed gitops/ && echo "$(GREEN)✓ YAML lint passed$(NC)"
+	@terraform -chdir=$(TERRAFORM_DIR) fmt -check -recursive && echo "$(GREEN)✓ Terraform format check passed$(NC)"
 
 ## security: Run security scans
 security:
 	@echo "$(BLUE)Running security scans...$(NC)"
-	@command -v gosec >/dev/null 2>&1 || { echo "$(YELLOW)Installing gosec...$(NC)"; go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest; }
-	@cd app && gosec ./... || echo "$(YELLOW)⚠ Security scan completed with warnings$(NC)"
-	@command -v trivy >/dev/null 2>&1 || { echo "$(YELLOW)Installing trivy...$(NC)"; brew install trivy; }
-	@trivy fs . --severity HIGH,CRITICAL || echo "$(YELLOW)⚠ Trivy scan completed with warnings$(NC)"
-	@echo "$(GREEN)✓ Security scans complete$(NC)"
+	@gosec ./app/... || echo "$(YELLOW)Gosec found issues$(NC)"
+	@trivy fs . --severity HIGH,CRITICAL || echo "$(YELLOW)Trivy found issues$(NC)"
 
-## clean: Clean up temporary files and caches
-clean:
-	@echo "$(BLUE)Cleaning up...$(NC)"
-	@rm -f $(TERRAFORM_DIR)/tfplan
-	@rm -f $(TERRAFORM_DIR)/.terraform.lock.hcl
-	@rm -rf $(TERRAFORM_DIR)/.terraform/
-	@rm -f app/coverage.out app/coverage.html
-	@go clean -cache -modcache -testcache >/dev/null 2>&1 || true
-	@docker system prune -f >/dev/null 2>&1 || true
-	@echo "$(GREEN)✓ Cleanup complete$(NC)"
-
-## logs: Show platform logs
-logs:
-	@echo "$(BLUE)Platform logs...$(NC)"
-	@if kubectl get namespace argocd >/dev/null 2>&1; then \
-		echo "$(GREEN)Argo CD Controller logs:$(NC)"; \
-		kubectl logs -n argocd -l app.kubernetes.io/component=application-controller --tail=50; \
-	fi
-
-## kyverno-test: Run admission checks for Kyverno policies (informational)
+## kyverno-test: Run Kyverno admission policy tests
 kyverno-test:
-	@echo "$(BLUE)Kyverno policy readiness:$(NC)"; \
-	kubectl get clusterpolicy -o wide || true; \
-	echo ""; \
-	echo "$(BLUE)Testing admission (server dry-run):$(NC)"; \
-	printf "  deny mutable tag (nginx:latest): "; kubectl create deployment kyv-digest-deny -n sample-app --image=nginx:latest --dry-run=server >/dev/null 2>&1 && echo FAIL || echo OK; \
-	printf "  require probes/resources on default deploy: "; kubectl create deployment kyv-probes-resources -n sample-app --image=nginx@sha256:8b1e8d4a6f2c6f55f3c8d9a9ce7b3f2b5b0a4f0b0d867bd5e9e79f0d0b8a1f14 --dry-run=server >/dev/null 2>&1 && echo FAIL || echo OK; \
-	printf "  dedicated SA must not be default: "; echo "$$'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: kyv-default-sa-deny\n  namespace: sample-app\nspec:\n  selector:\n    matchLabels: {app: test}\n  template:\n    metadata:\n      labels: {app: test}\n    spec:\n      serviceAccountName: default\n      containers:\n      - name: c\n        image: busybox@sha256:780fdf2769779b46b85fb44ba69bfe1fe42d63dc3df75abf69f27d6f5a1b2d3c\n        command: [\"sh\",\"-c\",\"sleep 10\"]'" | kubectl apply --dry-run=server -f - >/dev/null 2>&1 && echo FAIL || echo OK; \
-	echo ""; \
-	echo "$(YELLOW)Note: If tests show FAIL but policies are Ready, your cluster may have admission webhooks disabled.\nKyverno webhooks report 'admissions.enforcer/disabled: true' on this cluster.\nTo enforce in admission, recreate k3d with API server admission enabled. I can apply this for you.$(NC)";
+	@echo "$(BLUE)Testing Kyverno admission policies...$(NC)"
+	@kubectl get clusterpolicy -o wide || true
+	@printf "  deny mutable tag (nginx:latest): "; kubectl create deployment kyv-digest-deny -n sample-app --image=nginx:latest --dry-run=server >/dev/null 2>&1 && echo "$(RED)FAIL$(NC)" || echo "$(GREEN)OK$(NC)"
+	@printf "  require probes/resources: "; kubectl create deployment kyv-probes-res -n sample-app --image=nginx@sha256:8b1e8d4a6f2c6f55f3c8d9a9ce7b3f2b5b0a4f0b0d867bd5e9e79f0d0b8a1f14 --dry-run=server >/dev/null 2>&1 && echo "$(RED)FAIL$(NC)" || echo "$(GREEN)OK$(NC)"
 
-## runner-up: Start self-hosted GitHub Actions runner
+
+# ====================================================================================
+#                             Dependencies & Cleanup
+# ====================================================================================
+
+## bootstrap: Check and install all required dependencies
+bootstrap: check-deps install-deps
+	@echo "$(GREEN)✓ Bootstrap complete - ready to deploy!$(NC)"
+
+## check-deps: Check for required dependencies
+check-deps:
+	@echo "$(BLUE)Checking dependencies...$(NC)"
+	@command -v docker >/dev/null 2>&1 || { echo "$(RED)✗ Docker not found$(NC)"; exit 1; }
+	@command -v terraform >/dev/null 2>&1 || { echo "$(RED)✗ Terraform not found$(NC)"; exit 1; }
+	@command -v kubectl >/dev/null 2>&1 || { echo "$(RED)✗ kubectl not found$(NC)"; exit 1; }
+	@command -v helm >/dev/null 2>&1 || { echo "$(RED)✗ Helm not found$(NC)"; exit 1; }
+	@echo "$(GREEN)✓ All core dependencies found.$(NC)"
+
+## install-deps: Install missing dependencies using Homebrew
+install-deps:
+	@echo "$(BLUE)Installing any missing dependencies via Homebrew...$(NC)"
+	@command -v brew >/dev/null 2>&1 || { echo "$(RED)Homebrew is required to auto-install dependencies$(NC)"; exit 1; }
+	@brew install k3d terraform kubectl helm golangci-lint yamllint gosec trivy
+	@echo "$(GREEN)✓ Dependencies installed.$(NC)"
+
+## clean: Clean up temporary files and build caches
+clean:
+	@echo "$(BLUE)Cleaning up temporary files...$(NC)"
+	@rm -f $(TERRAFORM_DIR)/tfplan $(TERRAFORM_DIR)/.terraform.lock.hcl
+	@rm -rf $(TERRAFORM_DIR)/.terraform/ app/coverage.*
+	@go clean -cache -modcache -testcache >/dev/null 2>&1
+	@echo "$(GREEN)✓ Cleanup complete.$(NC)"
+
+
+# ====================================================================================
+#                             Self-Hosted Runner
+# ====================================================================================
+
+## runner-up: Start the self-hosted GitHub Actions runner
 runner-up:
-	@echo "$(BLUE)Starting self-hosted GitHub Actions runner...$(NC)"
-	@if [ ! -f runner/.runner ]; then \
-		echo "$(RED)✗ Runner not configured. Please run runner configuration first:$(NC)"; \
-		echo "$(YELLOW)  1. cd runner$(NC)"; \
-		echo "$(YELLOW)  2. ./config.sh --url https://github.com/j0c2/apqx-platform --token YOUR_PAT$(NC)"; \
-		echo "$(YELLOW)  3. Run 'make runner-up' again$(NC)"; \
-		exit 1; \
-	fi
-	@if pgrep -f "Runner.Listener" > /dev/null; then \
-		echo "$(YELLOW)⚠ Runner is already running$(NC)"; \
-	else \
-		echo "$(GREEN)Starting GitHub Actions runner...$(NC)"; \
-		nohup bash -c 'cd runner && ./run.sh' > runner/runner.log 2>&1 & \
-		sleep 2; \
-		if pgrep -f "Runner.Listener" > /dev/null; then \
-			echo "$(GREEN)✓ Runner started - check GitHub repo Settings > Actions > Runners$(NC)"; \
-		else \
-			echo "$(RED)✗ Failed to start runner - check runner/runner.log$(NC)"; \
-		fi; \
-	fi
+	@cd runner && ./run.sh
 
-## runner-down: Stop self-hosted GitHub Actions runner
+## runner-down: Stop the self-hosted GitHub Actions runner
 runner-down:
-	@echo "$(BLUE)Stopping self-hosted GitHub Actions runner...$(NC)"
-	@if pgrep -f "Runner.Listener" > /dev/null; then \
-		echo "$(GREEN)Stopping runner processes...$(NC)"; \
-		pkill -f "Runner.Listener" || true; \
-		pkill -f "run-helper.sh" || true; \
-		sleep 2; \
-		if pgrep -f "Runner.Listener" > /dev/null; then \
-			echo "$(YELLOW)⚠ Force killing runner processes...$(NC)"; \
-			pkill -9 -f "Runner.Listener" || true; \
-		fi; \
-		echo "$(GREEN)✓ Runner stopped$(NC)"; \
-	else \
-		echo "$(YELLOW)⚠ Runner is not running$(NC)"; \
-	fi
+	@pkill -f "Runner.Listener" || true
 
-## runner-config: Configure self-hosted runner (one-time setup)
+## runner-config: Configure the self-hosted runner
 runner-config:
-	@echo "$(BLUE)Configuring self-hosted GitHub Actions runner...$(NC)"
-	@if [ -f runner/.runner ]; then \
-		echo "$(YELLOW)⚠ Runner already configured. To reconfigure, run 'cd runner && ./config.sh remove' first$(NC)"; \
-		exit 1; \
-	fi
-	@echo "$(GREEN)Instructions for runner configuration:$(NC)"
-	@echo "  1. Create a GitHub PAT with 'repo' and 'workflow' scopes"
-	@echo "  2. cd runner"
-	@echo "  3. ./config.sh --url https://github.com/j0c2/apqx-platform --token YOUR_PAT"
-	@echo "  4. Follow prompts (press Enter for defaults)"
-	@echo "  5. Run 'make runner-up' to start the runner"
-	@echo ""
-	@echo "$(YELLOW)Note: Replace YOUR_PAT with your actual GitHub Personal Access Token$(NC)"
+	@echo "$(YELLOW)Enter your GitHub PAT with 'repo' and 'workflow' scopes below:$(NC)"
+	@read -s GITHUB_PAT; \
+	cd runner && ./config.sh --url https://github.com/j0c2/apqx-platform --token $$GITHUB_PAT --unattended
 
-## runner-status: Check runner status
+## runner-status: Check the status of the self-hosted runner
 runner-status:
-	@echo "$(BLUE)Self-hosted runner status:$(NC)"
-	@if [ -f runner/.runner ]; then \
-		echo "$(GREEN)Runner Configuration:$(NC)"; \
-		grep -E "agentName|gitHubUrl" runner/.runner | sed 's/^/  /'; \
-		echo ""; \
-	else \
-		echo "$(RED)✗ Runner not configured$(NC)"; \
-	fi
-	@if pgrep -f "Runner.Listener" > /dev/null; then \
-		echo "$(GREEN)✓ Runner Process: Running (PID: $$(pgrep -f 'Runner.Listener'))$(NC)"; \
-		echo "$(GREEN)Runner Logs: runner/runner.log$(NC)"; \
-	@else \
-		echo "$(RED)✗ Runner Process: Not running$(NC)"; \
-	fi
+	@pgrep -f "Runner.Listener" > /dev/null && echo "$(GREEN)Runner is running.$(NC)" || echo "$(RED)Runner is not running.$(NC)"
 
-## argocd: Open ArgoCD UI in browser
-argocd:
-	@echo "$(BLUE)Opening ArgoCD UI...$(NC)"
-	@TRAEFIK_IP=$$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null); \
-	if [ -n "$$TRAEFIK_IP" ]; then \
-		echo "$(GREEN)🎛️  ArgoCD URL: https://argocd.$$TRAEFIK_IP.sslip.io$(NC)"; \
-		open "https://argocd.$$TRAEFIK_IP.sslip.io" || true; \
-	else \
-		echo "$(YELLOW)Traefik IP not available, using localhost$(NC)"; \
-		echo "$(GREEN)🎛️  ArgoCD URL: https://argocd.localhost$(NC)"; \
-		open "https://argocd.localhost" || true; \
-	fi
-	@echo "$(YELLOW)Username: admin$(NC)"
-	@ARGO_PASS=$$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' 2>/dev/null | base64 -d 2>/dev/null || echo "password-not-found"); \
-	echo "$(YELLOW)Password: $$ARGO_PASS$(NC)"
 
-## rollouts: Open Argo Rollouts UI in browser
-rollouts:
-	@echo "$(BLUE)Opening Argo Rollouts UI...$(NC)"
-	@TRAEFIK_IP=$$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null); \
-	if [ -n "$$TRAEFIK_IP" ]; then \
-		echo "$(GREEN)📊 Rollouts URL: https://rollouts.$$TRAEFIK_IP.sslip.io$(NC)"; \
-		open "https://rollouts.$$TRAEFIK_IP.sslip.io" || true; \
-	else \
-		echo "$(YELLOW)Traefik IP not available, using localhost$(NC)"; \
-		echo "$(GREEN)📊 Rollouts URL: https://rollouts.localhost$(NC)"; \
-		open "https://rollouts.localhost" || true; \
+# ====================================================================================
+#                           Internal Helper Targets
+# ====================================================================================
+
+## ensure-access: Ensure Traefik port-forwarding is active
+ensure-access:
+	@if ! pgrep -f "kubectl port-forward.*traefik" > /dev/null; then \
+	    echo "$(YELLOW)Port forwarding not active. Starting now...$(NC)"; \
+	    $(MAKE) --no-print-directory access; \
 	fi
 
-## app: Open Sample App in browser
-app:
-	@echo "$(BLUE)Opening Sample App...$(NC)"
-	@TRAEFIK_IP=$$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null); \
-	if [ -n "$$TRAEFIK_IP" ]; then \
-		echo "$(GREEN)🚀 App URL: https://app.$$TRAEFIK_IP.sslip.io$(NC)"; \
-		open "https://app.$$TRAEFIK_IP.sslip.io" || true; \
-	else \
-		echo "$(YELLOW)Traefik IP not available, using localhost$(NC)"; \
-		echo "$(GREEN)🚀 App URL: https://app.localhost$(NC)"; \
-		open "https://app.localhost" || true; \
-	fi
+## access: Start Traefik port-forwarding in the background
+access:
+	@echo "$(BLUE)Starting Traefik port-forwarding on ports 8090 (HTTP) and 8443 (HTTPS)...$(NC)"
+	@nohup kubectl port-forward -n kube-system svc/traefik 8090:80 >/dev/null 2>&1 &
+	@nohup kubectl port-forward -n kube-system svc/traefik 8443:443 >/dev/null 2>&1 &
+	@sleep 2 # Allow time for port-forward to establish
 
-# Local access targets for k3d environment
-.PHONY: access start-access stop-access test-access
-
-access: ## Start local platform access via port forwarding
-	@echo "🚀 Starting platform access..."
-	@echo "Note: This will start port forwards on 8090 (HTTP) and 8443 (HTTPS)"
-	@echo "If ports are in use, please stop conflicting services first"
+## stop-access: Stop Traefik port-forwarding
+stop-access:
+	@echo "$(BLUE)Stopping Traefik port-forwarding...$(NC)"
 	@pkill -f "kubectl port-forward.*traefik" 2>/dev/null || true
-	@kubectl port-forward -n kube-system svc/traefik 8090:80 &
-	@kubectl port-forward -n kube-system svc/traefik 8443:443 &
-	@sleep 2
-	@TRAEFIK_IP=$$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}') && \
-	echo "" && \
-	echo "🌐 Platform Access URLs:" && \
-	echo "======================================" && \
-	echo "📱 Sample App:     http://localhost:8090 (Host: app.$$TRAEFIK_IP.sslip.io)" && \
-	echo "🎯 ArgoCD:         http://localhost:8090 (Host: argocd.$$TRAEFIK_IP.sslip.io)" && \
-	echo "📊 Argo Rollouts:  http://localhost:8090 (Host: rollouts.$$TRAEFIK_IP.sslip.io)" && \
-	echo "" && \
-	echo "🔐 HTTPS Access:" && \
-	echo "📱 Sample App:     https://localhost:8443 (Host: app.$$TRAEFIK_IP.sslip.io)" && \
-	echo "🎯 ArgoCD:         https://localhost:8443 (Host: argocd.$$TRAEFIK_IP.sslip.io)" && \
-	echo "📊 Argo Rollouts:  https://localhost:8443 (Host: rollouts.$$TRAEFIK_IP.sslip.io)" && \
-	echo "" && \
-	echo "💡 Add to /etc/hosts for easier browser access:" && \
-	echo "127.0.0.1 app.$$TRAEFIK_IP.sslip.io" && \
-	echo "127.0.0.1 argocd.$$TRAEFIK_IP.sslip.io" && \
-	echo "127.0.0.1 rollouts.$$TRAEFIK_IP.sslip.io" && \
-	echo "" && \
-	echo "✅ Port forwards active. Run 'make stop-access' to stop."
+	@echo "$(GREEN)✓ Port forwarding stopped.$(NC)"
 
-stop-access: ## Stop platform access port forwards
-	@echo "🛑 Stopping platform access..."
-	@pkill -f "kubectl port-forward.*traefik" 2>/dev/null || true
-	@echo "✅ Port forwards stopped"
+## update-ingress-hosts: Update /etc/hosts with service domains
+update-ingress-hosts:
+	@echo "$(BLUE)Updating Ingress hosts file...$(NC)"
+	@chmod +x scripts/setup/update-ingress-hosts.sh
+	@scripts/setup/update-ingress-hosts.sh
 
-update-ingress-hosts: ## Update ingress hosts to current LOCAL_IP\n\t@chmod +x scripts/setup/update-ingress-hosts.sh || true\n\t@scripts/setup/update-ingress-hosts.sh\n\n\n test-access: ## Test platform access via localhost
-	@echo "🧪 Testing platform access via localhost..."
-	@TRAEFIK_IP=$$(kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}') && \
-	echo "Testing Sample App..." && \
-	curl -s -H "Host: app.$$TRAEFIK_IP.sslip.io" http://localhost:8090/api/status >/dev/null 2>&1 && echo "✅ Sample App accessible" || echo "❌ Sample App test failed" && \
-	echo "Testing ArgoCD..." && \
-	curl -s -H "Host: argocd.$$TRAEFIK_IP.sslip.io" http://localhost:8090/ >/dev/null 2>&1 && echo "✅ ArgoCD accessible" || echo "❌ ArgoCD test failed" && \
-	echo "Testing Argo Rollouts..." && \
-	curl -s -H "Host: rollouts.$$TRAEFIK_IP.sslip.io" http://localhost:8090/rollouts/ >/dev/null 2>&1 && echo "✅ Argo Rollouts accessible" || echo "❌ Rollouts test failed"
+# Internal helper to get the Traefik IP
+_get-traefik-ip:
+	@kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "localhost"
 
+# Internal helper to open a URL
+_open-url:
+	@TRAEFIK_IP=$$($(MAKE) --no-print-directory _get-traefik-ip); \
+	URL="https://$(host).$$TRAEFIK_IP.sslip.io$(path)"; \
+	echo "$(GREEN)Opening $(name) at $$URL...$(NC)"; \
+	open "$$URL" || true
+
+# Internal helper to show deployment summary
+_show-deployment-summary:
+	@echo ""
+	@echo "$(BLUE)📋 Deployment Summary$(NC)"
+	@echo "====================="
+	@TRAEFIK_IP=$$($(MAKE) --no-print-directory _get-traefik-ip); \
+	echo "$(GREEN)✓ Core Services:$(NC)"; \
+	echo "  🚀 Sample App:    https://app.$$TRAEFIK_IP.sslip.io"; \
+	echo "  🎛️  ArgoCD:        https://argocd.$$TRAEFIK_IP.sslip.io"; \
+	echo "  📊 Argo Rollouts: https://rollouts.$$TRAEFIK_IP.sslip.io/rollouts/"; \
+	echo ""; \
+	if kubectl get namespace tailscale >/dev/null 2>&1; then \
+	    echo "$(GREEN)✓ Tailscale Integration: Enabled$(NC)"; \
+	    echo "  🔒 Tailscale App: Available via MagicDNS"; \
+	else \
+	    echo "$(YELLOW)ℹ️  Tailscale Integration: Disabled$(NC)"; \
+	    echo "  💡 To enable: Set enable_tailscale=true in terraform.tfvars"; \
+	fi; \\
+	echo ""; \
+	echo "$(YELLOW)ArgoCD Login:$(NC)"; \
+	echo "  Username: admin"; \
+	echo "  Password: $$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' 2>/dev/null | base64 -d 2>/dev/null || echo 'not-ready-yet')"; \
+	echo ""
