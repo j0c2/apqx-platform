@@ -13,7 +13,6 @@ resources:
 - rollout.yaml
 - ingress.yaml
 - secret.yaml
-- clusterissuer-selfsigned.yaml
 - certificate.yaml
 - ts-egress-externalname.yaml
 - ingress-tailscale.yaml
