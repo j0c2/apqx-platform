@@ -23,6 +23,7 @@ spec:
                 - kyverno
                 - argocd
                 - tailscale
+                - argo-rollouts
       validate:
         message: "Images must be pinned by digest (no mutable tags)"
         cel:
