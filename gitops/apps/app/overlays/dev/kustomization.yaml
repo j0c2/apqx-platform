@@ -17,6 +17,19 @@ resources:
 - ts-egress-externalname.yaml
 - ingress-tailscale.yaml
 
+# Patch HPA to reference Rollout instead of Deployment
+patches:
+- patch: |-
+    - op: replace
+      path: /spec/scaleTargetRef/apiVersion
+      value: argoproj.io/v1alpha1
+    - op: replace
+      path: /spec/scaleTargetRef/kind
+      value: Rollout
+  target:
+    kind: HorizontalPodAutoscaler
+    name: sample-app
+
 # Image configuration - digest will be updated by CI pipeline
 images:
 - digest: sha256:e7d9041a9ddb1ef1696167a0a837c8b664174806e88315c7b78688c0bdc058a8
