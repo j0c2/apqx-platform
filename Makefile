@@ -3,7 +3,7 @@
 # ====================================================================================
 
 # Docker & Kubernetes
-CLUSTER_NAME    := apqx-platform
+CLUSTER_NAME    := k3d-onprem
 KUBECONFIG_PATH := ~/.kube/config
 
 # Terraform
@@ -126,11 +126,11 @@ status: ensure-access
 	@k3d cluster list | grep -q '$(CLUSTER_NAME)' && echo "$(GREEN)✓ k3d cluster: $(CLUSTER_NAME)$(NC)" || echo "$(RED)✗ k3d cluster not found$(NC)"
 	@echo ""
 	@echo "$(GREEN)Service URLs:$(NC)"
-	@TRAEFIK_IP=$$($(MAKE) --no-print-directory _get-traefik-ip) ; \
-	echo "  🚀 Sample App:    https://app.$$TRAEFIK_IP.sslip.io"; \
-	echo "  🎛️  ArgoCD:          https://argocd.$$TRAEFIK_IP.sslip.io"; \
-	echo "  📊 Argo Rollouts:   https://rollouts.$$TRAEFIK_IP.sslip.io/rollouts/"; \
-	echo "  🔒 Tailscale App: https://app-onprem.tail13bd49.ts.net"; \
+	@LOCAL_IP=$$($(MAKE) --no-print-directory _get-local-ip) ; \
+	echo "  🚀 Sample App:    https://app.$$LOCAL_IP.sslip.io"; \
+	echo "  🎛️  ArgoCD:          https://argocd.$$LOCAL_IP.sslip.io"; \
+	echo "  📊 Argo Rollouts:   https://rollouts.$$LOCAL_IP.sslip.io/rollouts/"; \
+	echo "  🔒 Tailscale App: https://app-onprem.tail13bd49.ts.net";
 	@echo ""
 	@echo "$(YELLOW)ArgoCD Login:$(NC)" \
 	&& echo "  Username: admin" \
@@ -180,10 +180,10 @@ test:
 ## test-access: Test connectivity to service endpoints
 test-access: ensure-access
 	@echo "🧪 Testing service endpoint connectivity..."
-	@TRAEFIK_IP=$$($(MAKE) --no-print-directory _get-traefik-ip); \
-	curl -s -o /dev/null -w "%{http_code}" -H "Host: app.$$TRAEFIK_IP.sslip.io" http://localhost:8090/api/status | grep -q "200" && echo "  $(GREEN)✓ Sample App$(NC)" || echo "  $(RED)✗ Sample App$(NC)"; \
-	curl -s -o /dev/null -w "%{http_code}" -H "Host: argocd.$$TRAEFIK_IP.sslip.io" http://localhost:8090/ | grep -q "200" && echo "  $(GREEN)✓ ArgoCD$(NC)" || echo "  $(RED)✗ ArgoCD$(NC)"; \
-	curl -s -o /dev/null -w "%{http_code}" -H "Host: rollouts.$$TRAEFIK_IP.sslip.io" http://localhost:8090/rollouts/ | grep -q "200" && echo "  $(GREEN)✓ Argo Rollouts$(NC)" || echo "  $(RED)✗ Argo Rollouts$(NC)"
+	@LOCAL_IP=$$($(MAKE) --no-print-directory _get-local-ip); \
+	curl -s -o /dev/null -w "%{http_code}" -H "Host: app.$$LOCAL_IP.sslip.io" http://localhost:8090/api/status | grep -q "200" && echo "  $(GREEN)✓ Sample App$(NC)" || echo "  $(RED)✗ Sample App$(NC)"; \
+	curl -s -o /dev/null -w "%{http_code}" -H "Host: argocd.$$LOCAL_IP.sslip.io" http://localhost:8090/ | grep -q "200" && echo "  $(GREEN)✓ ArgoCD$(NC)" || echo "  $(RED)✗ ArgoCD$(NC)"; \
+	curl -s -o /dev/null -w "%{http_code}" -H "Host: rollouts.$$LOCAL_IP.sslip.io" http://localhost:8090/rollouts/ | grep -q "200" && echo "  $(GREEN)✓ Argo Rollouts$(NC)" || echo "  $(RED)✗ Argo Rollouts$(NC)"
 
 ## lint: Lint all code and configurations
 lint:
@@ -292,14 +292,31 @@ update-ingress-hosts:
 	@chmod +x scripts/setup/update-ingress-hosts.sh
 	@scripts/setup/update-ingress-hosts.sh
 
-# Internal helper to get the Traefik IP
+# Internal helper to get the local IP for sslip.io (same logic as update-ingress-hosts.sh)
+_get-local-ip:
+	@if [ -n "$(LOCAL_IP)" ]; then \
+	    echo "$(LOCAL_IP)"; \
+	else \
+	    LOCAL_IP=$$(( \
+	        (route -n get default 2>/dev/null | awk '/interface:/{print $$2}' | xargs -I{} ipconfig getifaddr {} 2>/dev/null) || \
+	        (ip route get 1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($$i=="src") {print $$(i+1); exit}}') || \
+	        (ifconfig | awk '/inet /{print $$2}' | grep -Ev '^(127\.|169\.254\.|100\.)' | head -1) \
+	    ) 2>/dev/null); \
+	    if [ -n "$$LOCAL_IP" ]; then \
+	        echo "$$LOCAL_IP"; \
+	    else \
+	        echo "localhost"; \
+	    fi; \
+	fi
+
+# Internal helper to get the Traefik IP (kept for legacy compatibility)
 _get-traefik-ip:
 	@kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "localhost"
 
 # Internal helper to open a URL
 _open-url:
-	@TRAEFIK_IP=$$($(MAKE) --no-print-directory _get-traefik-ip); \
-	URL="https://$(host).$$TRAEFIK_IP.sslip.io$(path)"; \
+	@LOCAL_IP=$$($(MAKE) --no-print-directory _get-local-ip); \
+	URL="https://$(host).$$LOCAL_IP.sslip.io$(path)"; \
 	echo "$(GREEN)Opening $(name) at $$URL...$(NC)"; \
 	open "$$URL" || true
 
@@ -308,11 +325,11 @@ _show-deployment-summary:
 	@echo ""
 	@echo "$(BLUE)📋 Deployment Summary$(NC)"
 	@echo "====================="
-	@TRAEFIK_IP=$$($(MAKE) --no-print-directory _get-traefik-ip); \
+	@LOCAL_IP=$$($(MAKE) --no-print-directory _get-local-ip); \
 	echo "$(GREEN)✓ Core Services:$(NC)"; \
-	echo "  🚀 Sample App:    https://app.$$TRAEFIK_IP.sslip.io"; \
-	echo "  🎛️  ArgoCD:        https://argocd.$$TRAEFIK_IP.sslip.io"; \
-	echo "  📊 Argo Rollouts: https://rollouts.$$TRAEFIK_IP.sslip.io/rollouts/"; \
+	echo "  🚀 Sample App:    https://app.$$LOCAL_IP.sslip.io"; \
+	echo "  🎛️  ArgoCD:        https://argocd.$$LOCAL_IP.sslip.io"; \
+	echo "  📊 Argo Rollouts: https://rollouts.$$LOCAL_IP.sslip.io/rollouts/";
 	echo ""; \
 	if kubectl get namespace tailscale >/dev/null 2>&1; then \
 	    echo "$(GREEN)✓ Tailscale Integration: Enabled$(NC)"; \
@@ -320,7 +337,7 @@ _show-deployment-summary:
 	else \
 	    echo "$(YELLOW)ℹ️  Tailscale Integration: Disabled$(NC)"; \
 	    echo "  💡 To enable: Set enable_tailscale=true in terraform.tfvars"; \
-	fi; \\
+	fi; \
 	echo ""; \
 	echo "$(YELLOW)ArgoCD Login:$(NC)"; \
 	echo "  Username: admin"; \
