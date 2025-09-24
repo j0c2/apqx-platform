@@ -20,7 +20,7 @@ NC     := \033[0m # No Color
 #                                Phony Targets
 # ====================================================================================
 
-.PHONY: help up destroy quick-destroy status verify-deployment validate plan diff set-deployment-strategy access stop-access update-ingress-hosts ensure-access argocd rollouts app open-uis dev test test-access lint security kyverno-test bootstrap check-deps install-deps clean runner-up runner-down runner-config runner-status
+.PHONY: help up destroy quick-destroy diff set-deployment-strategy access stop-access update-ingress-hosts ensure-access argocd rollouts app open-uis dev test lint security kyverno-test bootstrap check-deps install-deps clean runner-up runner-down runner-config runner-status
 
 
 # ====================================================================================
@@ -81,6 +81,9 @@ up: bootstrap
 	@echo "========================"
 	@k3d cluster list | grep -q '$(CLUSTER_NAME)' && echo "$(GREEN)✓ k3d cluster: $(CLUSTER_NAME)$(NC)" || echo "$(RED)✗ k3d cluster not found$(NC)"
 	@echo ""
+	@echo "$(GREEN)🕰 GitOps Applications:$(NC)"
+	@kubectl get applications -n argocd --no-headers | awk '{printf "  %s: %s (%s)\n", $$1, $$2, $$3}' || echo "  $(RED)✗ ArgoCD applications not available$(NC)"
+	@echo ""
 	@echo "$(GREEN)🌐 Service URLs:$(NC)"
 	@LOCAL_IP=$$($(MAKE) --no-print-directory _get-local-ip) ; \
 	echo "  🚀 Sample App:    https://app.$$LOCAL_IP.sslip.io"; \
@@ -140,32 +143,7 @@ diff:
 #                             Service Access & Status
 # ====================================================================================
 
-## status: Show platform status and service URLs
-status: ensure-access
-	@echo "$(BLUE)apqx-platform Status$(NC)"
-	@echo "===================="
-	@k3d cluster list | grep -q '$(CLUSTER_NAME)' && echo "$(GREEN)✓ k3d cluster: $(CLUSTER_NAME)$(NC)" || echo "$(RED)✗ k3d cluster not found$(NC)"
-	@echo ""
-	@echo "$(GREEN)Service URLs:$(NC)"
-	@LOCAL_IP=$$($(MAKE) --no-print-directory _get-local-ip) ; \
-	echo "  🚀 Sample App:    https://app.$$LOCAL_IP.sslip.io"; \
-	echo "  🎛️  ArgoCD:          https://argocd.$$LOCAL_IP.sslip.io"; \
-	echo "  📊 Argo Rollouts:   https://rollouts.$$LOCAL_IP.sslip.io/rollouts/"; \
-	echo "  🔒 Tailscale App: https://app-onprem.tail13bd49.ts.net";
-	@echo ""
-	@echo "$(YELLOW)ArgoCD Login:$(NC)" \
-	&& echo "  Username: admin" \
-	&& echo "  Password: $$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' 2>/dev/null | base64 -d 2>/dev/null || echo 'not-ready-yet')"
 
-## verify-deployment: Verify the platform deployment is healthy
-verify-deployment: ensure-access
-	@echo "$(BLUE)🔍 Verifying platform deployment...$(NC)"
-	@kubectl get nodes -o wide
-	@kubectl get applications -n argocd
-	@kubectl get certificates -A
-	@kubectl get ingress -A
-	@echo "$(BLUE)Testing service endpoints...$(NC)"
-	@$(MAKE) test-access
 
 ## open-uis: Open all service UIs in the browser
 open-uis: argocd rollouts app
@@ -198,13 +176,6 @@ test:
 	@cd app && go test -v -race -coverprofile=coverage.out ./... && go tool cover -html=coverage.out -o coverage.html
 	@echo "$(GREEN)✓ Tests complete. Report: app/coverage.html$(NC)"
 
-## test-access: Test connectivity to service endpoints
-test-access: ensure-access
-	@echo "🧪 Testing service endpoint connectivity..."
-	@LOCAL_IP=$$($(MAKE) --no-print-directory _get-local-ip); \
-	curl -s -o /dev/null -w "%{http_code}" -H "Host: app.$$LOCAL_IP.sslip.io" http://localhost:8090/api/status | grep -q "200" && echo "  $(GREEN)✓ Sample App$(NC)" || echo "  $(RED)✗ Sample App$(NC)"; \
-	curl -s -o /dev/null -w "%{http_code}" -H "Host: argocd.$$LOCAL_IP.sslip.io" http://localhost:8090/ | grep -q "200" && echo "  $(GREEN)✓ ArgoCD$(NC)" || echo "  $(RED)✗ ArgoCD$(NC)"; \
-	curl -s -o /dev/null -w "%{http_code}" -H "Host: rollouts.$$LOCAL_IP.sslip.io" http://localhost:8090/rollouts/ | grep -q "200" && echo "  $(GREEN)✓ Argo Rollouts$(NC)" || echo "  $(RED)✗ Argo Rollouts$(NC)"
 
 ## lint: Lint all code and configurations
 lint:
@@ -330,9 +301,6 @@ _get-local-ip:
 	    fi; \
 	fi
 
-# Internal helper to get the Traefik IP (kept for legacy compatibility)
-_get-traefik-ip:
-	@kubectl get service -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "localhost"
 
 # Internal helper to open a URL
 _open-url:
