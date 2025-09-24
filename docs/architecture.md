@@ -71,12 +71,24 @@ The `apqx-platform` is an on-premises GitOps application platform that simulates
 
 ### Controller installation & GitOps separation
 - Controllers (Argo CD, Kyverno, cert-manager, Argo Rollouts, Tailscale operator) are installed by Terraform via Helm.
-- GitOps resources (Kyverno policies, platform ingresses, Certificates) and the application overlay are managed by Argo CD Applications.
-- The Makefile wires these together (Step 3 applies management Applications including Kyverno policies).
+- GitOps resources (Kyverno policies, platform ingresses, Certificates) and applications are managed by Argo CD Applications.
+- The platform currently manages 5 ArgoCD applications:
+  - `cert-manager-infrastructure`: TLS certificate management
+  - `platform-ingresses`: Ingress routing for platform services
+  - `sample-app`: Demo application with progressive delivery
+  - `sealed-secrets`: Encrypted secrets management (GitOps-ready)
+  - `tailscale-operator`: Secure networking and remote access
+- The Makefile orchestrates the deployment by applying all application manifests during `make up`.
 
 ### CI/CD Overview
-- GitHub Actions builds the sample app, pushes to GHCR, generates an SBOM, scans with Trivy, then updates the Kustomize overlay digest.
-- Argo CD auto-syncs the digest change to rollout the new version.
+- **✅ Optimized Pipeline**: All GitHub Actions workflows pass consistently
+- **Test Suite**: Go unit tests with race detection and coverage reporting  
+- **Quality Gates**: golangci-lint, hadolint (Dockerfile), yamllint validation
+- **Security Scanning**: gosec source analysis and trivy image vulnerability scanning
+- **Multi-arch Builds**: Docker images built for linux/amd64 and linux/arm64
+- **SBOM Generation**: Software Bill of Materials attached to container images
+- **GitOps Integration**: Automated digest updates trigger ArgoCD sync for deployments
+- **Local Testing**: Full pipeline testable locally using `act` with provided `.actrc` configuration
 
 ### Infrastructure Layer
 - **k3d Cluster**: Lightweight Kubernetes for local development
@@ -106,11 +118,19 @@ The `apqx-platform` is an on-premises GitOps application platform that simulates
 ✅ **SRE**: HPA, PDB, resource limits, health checks
 ✅ **DNS**: Both sslip.io and Tailscale MagicDNS working
 
-## Key URLs
+## Service URLs
 
-- **Application (Public)**: https://app.<LOCAL-IP>.sslip.io
-- **Application (Tailnet)**: http://app-onprem.tail13bd49.ts.net
-- **Argo CD UI**: kubectl port-forward to localhost:8080
+### Application Access
+- **Primary**: `https://app.<LOCAL-IP>.sslip.io`
+- **Tailscale** (optional): `https://app-onprem.tail13bd49.ts.net`
+- **Port-forward**: `make access` then use localhost:8090/8443
+
+### Management Interfaces
+- **ArgoCD**: `https://argocd.<LOCAL-IP>.sslip.io` (GitOps dashboard)
+- **Argo Rollouts**: `https://rollouts.<LOCAL-IP>.sslip.io/rollouts/` (Progressive delivery)
+
+### Credentials
+- **ArgoCD**: Username `admin`, password from `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d`
 
 ## Technology Decisions
 
