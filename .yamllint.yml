@@ -1,11 +1,19 @@
-extends: default
+extends: relaxed
 
 rules:
   line-length:
     max: 150
     level: warning
   document-start: disable
-  trailing-spaces: disable
-  new-line-at-end-of-file: disable
+  trailing-spaces:
+    level: warning
+  new-line-at-end-of-file:
+    level: warning
+  indentation:
+    level: warning
   truthy:
     allowed-values: ['true', 'false', 'on', 'off', 'yes', 'no']
+  brackets:
+    level: warning
+  braces:
+    level: warning

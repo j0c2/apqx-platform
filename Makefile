@@ -64,6 +64,8 @@ up: bootstrap
 	@kubectl apply -f gitops/apps/management/ingresses.yaml
 	@kubectl apply -f gitops/apps/argocd/kyverno-app.yaml
 	@kubectl apply -f gitops/apps/app/application.yaml || echo "$(YELLOW)Sample app already exists$(NC)"
+	@kubectl apply -f gitops/apps/sealed-secrets/application.yaml || echo "$(YELLOW)Sealed-secrets app already exists$(NC)"
+	@kubectl apply -f gitops/apps/tailscale-operator/application.yaml || echo "$(YELLOW)Tailscale-operator app already exists$(NC)"
 	@echo "$(BLUE)Step 5: Updating ingress hosts with current IP...$(NC)"
 	@$(MAKE) update-ingress-hosts
 	@echo "$(BLUE)Step 6: Ensuring service access and port-forwarding...$(NC)"
