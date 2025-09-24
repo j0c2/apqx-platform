@@ -6,6 +6,8 @@ kind: Application
 metadata:
   name: sample-app
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/refresh: "true"
   labels:
     app.kubernetes.io/name: sample-app
     app.kubernetes.io/part-of: apqx-platform
@@ -26,4 +28,16 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+  # Ignore differences for fields managed by Argo Rollouts controller
+  ignoreDifferences:
+  - group: ""
+    kind: Service
+    name: sample-app-stable
+    jsonPointers:
+    - /spec/selector
+  - group: ""
+    kind: Service  
+    name: sample-app-canary
+    jsonPointers:
+    - /spec/selector
   revisionHistoryLimit: 3
