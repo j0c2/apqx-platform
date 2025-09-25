@@ -3,8 +3,9 @@
 # Tailscale namespace excluded from Kyverno security policies
 
 oauth:
-  # Reference precreated secret to avoid putting credentials in values
-  existingSecret: operator-oauth
+  # Create the secret with credentials inline
+  clientId: ${client_id}
+  clientSecret: ${client_secret}
 
 operatorConfig:
   defaultProxyClass: ""

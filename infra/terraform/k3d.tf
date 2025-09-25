@@ -68,7 +68,7 @@ resource "null_resource" "k3d_cluster" {
   # Destroy cluster
   provisioner "local-exec" {
     when    = destroy
-    command = "k3d cluster delete ${local.cluster_name} || true"
+    command = "k3d cluster delete ${self.triggers.cluster_name} || true"
   }
 
 triggers = {

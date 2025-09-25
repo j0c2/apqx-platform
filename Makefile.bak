@@ -20,7 +20,7 @@ NC     := \033[0m # No Color
 #                                Phony Targets
 # ====================================================================================
 
-.PHONY: help up destroy quick-destroy diff set-deployment-strategy access stop-access update-ingress-hosts ensure-access test-connectivity test-connectivity-fallback argocd rollouts app app-tailscale open-uis dev test lint security kyverno-test bootstrap check-deps install-deps clean runner-up runner-down runner-config runner-status
+.PHONY: help up destroy quick-destroy diff set-deployment-strategy access stop-access update-ingress-hosts ensure-access argocd rollouts app open-uis dev test lint security kyverno-test bootstrap check-deps install-deps clean runner-up runner-down runner-config runner-status
 
 
 # ====================================================================================
@@ -54,7 +54,6 @@ up: bootstrap
 	    echo "$(YELLOW)ℹ️  No terraform.tfvars found - using defaults (Tailscale disabled)$(NC)"; \
 	fi
 	@echo "$(BLUE)Step 2: Deploying infrastructure via Terraform...$(NC)"
-	@terraform -chdir=$(TERRAFORM_DIR) init -input=false
 	@terraform -chdir=$(TERRAFORM_DIR) apply -auto-approve
 	@echo "$(GREEN)✅ Infrastructure deployed$(NC)"
 	@echo "$(BLUE)Step 3: Waiting for ArgoCD to be ready...$(NC)"
@@ -67,27 +66,17 @@ up: bootstrap
 	@kubectl apply -f gitops/apps/app/application.yaml || echo "$(YELLOW)Sample app already exists$(NC)"
 	@kubectl apply -f gitops/apps/sealed-secrets/application.yaml || echo "$(YELLOW)Sealed-secrets app already exists$(NC)"
 	@kubectl apply -f gitops/apps/tailscale-operator/application.yaml || echo "$(YELLOW)Tailscale-operator app already exists$(NC)"
-	@echo "$(BLUE)Step 4.1: Ensuring 'platform-ingresses' is synced in ArgoCD...$(NC)"
-	@kubectl patch application platform-ingresses -n argocd --type merge -p '{"operation":{"sync":{}}}' >/dev/null 2>&1 || true
-	@echo "$(BLUE)Waiting for platform-ingresses to become Synced/Healthy (timeout ~60s)...$(NC)"
-	@for i in $$(seq 1 30); do \
-	  SYNC=$$(kubectl get application platform-ingresses -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null || echo ""); \
-	  HEALTH=$$(kubectl get application platform-ingresses -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo ""); \
-	  if [ "$$SYNC" = "Synced" ] && [ "$$HEALTH" = "Healthy" ]; then \
-	    echo "$(GREEN)✓ platform-ingresses is Synced/Healthy$(NC)"; \
-	    break; \
-	  fi; \
-	  sleep 2; \
-	  if [ $$i -eq 30 ]; then \
-	    echo "$(YELLOW)⚠ platform-ingresses not healthy after waiting; continuing...$(NC)"; \
-	  fi; \
-	done
 	@echo "$(BLUE)Step 5: Updating ingress hosts with current IP...$(NC)"
 	@$(MAKE) update-ingress-hosts
 	@echo "$(BLUE)Step 6: Ensuring service access and port-forwarding...$(NC)"
 	@$(MAKE) ensure-access
 	@echo "$(BLUE)Step 7: Testing service connectivity...$(NC)"
-	@$(MAKE) test-connectivity
+	@echo "🧪 Testing service endpoint connectivity..."
+	@LOCAL_IP=$$($(MAKE) --no-print-directory _get-local-ip); \
+	curl -s -o /dev/null -w "%{http_code}" -H "Host: app.$$LOCAL_IP.sslip.io" http://localhost:8090/api/status | grep -q "200" && echo "  $(GREEN)✓ Sample App$(NC)" || echo "  $(RED)✗ Sample App$(NC)"; \
+	curl -s -o /dev/null -w "%{http_code}" -H "Host: argocd.$$LOCAL_IP.sslip.io" http://localhost:8090/ | grep -q "200" && echo "  $(GREEN)✓ ArgoCD$(NC)" || echo "  $(RED)✗ ArgoCD$(NC)"; \
+	curl -s -o /dev/null -w "%{http_code}" -H "Host: rollouts.$$LOCAL_IP.sslip.io" http://localhost:8090/rollouts/ | grep -q "200" && echo "  $(GREEN)✓ Argo Rollouts$(NC)" || echo "  $(RED)✗ Argo Rollouts$(NC)"
+	@echo "$(GREEN)✅ All services are accessible$(NC)"
 	@echo "$(BLUE)Step 8: Platform Status Summary...$(NC)"
 	@echo ""
 	@echo "$(BLUE)📊 apqx-platform Status$(NC)"
@@ -121,11 +110,8 @@ destroy:
 quick-destroy:
 	@echo "$(BLUE)🗑️  Tearing down platform...$(NC)"
 	@pkill -f "kubectl port-forward.*traefik" 2>/dev/null || true
-	@echo "$(BLUE)Deleting k3d cluster directly for fast teardown...$(NC)"
+	@terraform -chdir=$(TERRAFORM_DIR) destroy -auto-approve || true
 	@k3d cluster delete $(CLUSTER_NAME) 2>/dev/null || true
-	@echo "$(BLUE)Cleaning up terraform state...$(NC)"
-	@tofu -chdir=$(TERRAFORM_DIR) init -input=false >/dev/null 2>&1 || true
-	@rm -rf $(TERRAFORM_DIR)/.terraform/ $(TERRAFORM_DIR)/terraform.tfstate* $(TERRAFORM_DIR)/.terraform.lock.hcl 2>/dev/null || true
 	@echo "$(GREEN)✅ Teardown finished$(NC)"
 
 
@@ -161,88 +147,8 @@ diff:
 
 
 
-## test-connectivity: Test service endpoint connectivity with proper error handling
-test-connectivity:
-	@echo "🧪 Testing service endpoint connectivity..."
-	@LOCAL_IP=$$($(MAKE) --no-print-directory _get-local-ip); \
-	FAILED_SERVICES=""; \
-	\
-	echo "  Testing Sample App..."; \
-	if curl -k -s -o /dev/null -w "%{http_code}" https://app.$$LOCAL_IP.sslip.io/api/status | grep -q "200"; then \
-		echo "  $(GREEN)✓ Sample App$(NC)"; \
-	else \
-		echo "  $(RED)✗ Sample App (HTTPS endpoint failed)$(NC)"; \
-		FAILED_SERVICES="$$FAILED_SERVICES sample-app"; \
-	fi; \
-	\
-	echo "  Testing ArgoCD..."; \
-	if curl -k -s -o /dev/null -w "%{http_code}" https://argocd.$$LOCAL_IP.sslip.io/ | grep -q "200"; then \
-		echo "  $(GREEN)✓ ArgoCD$(NC)"; \
-	else \
-		echo "  $(RED)✗ ArgoCD (HTTPS endpoint failed)$(NC)"; \
-		FAILED_SERVICES="$$FAILED_SERVICES argocd"; \
-	fi; \
-	\
-	echo "  Testing Argo Rollouts..."; \
-	if curl -k -s -o /dev/null -w "%{http_code}" https://rollouts.$$LOCAL_IP.sslip.io/rollouts/ | grep -q "200"; then \
-		echo "  $(GREEN)✓ Argo Rollouts$(NC)"; \
-	else \
-		echo "  $(RED)✗ Argo Rollouts (HTTPS endpoint failed)$(NC)"; \
-		FAILED_SERVICES="$$FAILED_SERVICES argo-rollouts"; \
-	fi;
-	\
-	if [ -n "$$FAILED_SERVICES" ]; then \
-		echo "$(RED)❤ Some services failed HTTPS connectivity tests$$FAILED_SERVICES$(NC)"; \
-		echo "$(YELLOW)Attempting fallback connectivity via port-forward...$(NC)"; \
-		$(MAKE) test-connectivity-fallback; \
-	else \
-		echo "$(GREEN)✅ All services are accessible via HTTPS$(NC)"; \
-	fi
-
-## test-connectivity-fallback: Test connectivity via port-forward as fallback
-test-connectivity-fallback:
-	@echo "$(BLUE)Testing direct service connectivity via port-forward...$(NC)"
-	@FAILED_DIRECT=""; \
-	\
-	echo "  Testing ArgoCD direct connection..."; \
-	if timeout 10 kubectl port-forward -n argocd svc/argocd-server 8081:80 >/dev/null 2>&1 & \
-		PF_PID=$$!; sleep 2; \
-		curl -s -o /dev/null -w "%{http_code}" http://localhost:8081/ | grep -q "200"; then \
-		echo "  $(GREEN)✓ ArgoCD (direct)$(NC)"; \
-		kill $$PF_PID 2>/dev/null || true; \
-	else \
-		echo "  $(RED)✗ ArgoCD (direct connection failed)$(NC)"; \
-		FAILED_DIRECT="$$FAILED_DIRECT argocd"; \
-		kill $$PF_PID 2>/dev/null || true; \
-	fi; \
-	\
-	echo "  Testing Sample App direct connection..."; \
-	if timeout 10 kubectl port-forward -n sample-app svc/sample-app 8082:80 >/dev/null 2>&1 & \
-		PF_PID=$$!; sleep 2; \
-		curl -s -o /dev/null -w "%{http_code}" http://localhost:8082/api/status | grep -q "200"; then \
-		echo "  $(GREEN)✓ Sample App (direct)$(NC)"; \
-		kill $$PF_PID 2>/dev/null || true; \
-	else \
-		echo "  $(RED)✗ Sample App (direct connection failed)$(NC)"; \
-		FAILED_DIRECT="$$FAILED_DIRECT sample-app"; \
-		kill $$PF_PID 2>/dev/null || true; \
-	fi; \
-	\
-	if [ -n "$$FAILED_DIRECT" ]; then \
-		echo "$(RED)❌ Critical: Services are not accessible even via direct connection: $$FAILED_DIRECT$(NC)"; \
-		echo "$(YELLOW)This indicates the services may not be running properly.$(NC)"; \
-		echo "$(BLUE)Checking service status...$(NC)"; \
-		kubectl get pods -n argocd; \
-		kubectl get pods -n sample-app 2>/dev/null || echo "Sample app namespace not found"; \
-		echo "$(RED)Platform deployment has issues - manual verification required$(NC)"; \
-		exit 1; \
-	else \
-		echo "$(YELLOW)⚠ sslip.io endpoints not working, but services are running correctly$(NC)"; \
-		echo "$(GREEN)✅ Platform deployed successfully (use port-forward for local access)$(NC)"; \
-	fi
-
 ## open-uis: Open all service UIs in the browser
-open-uis: argocd rollouts app app-tailscale
+open-uis: argocd rollouts app
 
 ## argocd: Open the ArgoCD UI
 argocd: ensure-access
@@ -255,11 +161,6 @@ rollouts: ensure-access
 ## app: Open the Sample App UI
 app: ensure-access
 	@$(MAKE) --no-print-directory _open-url name="Sample App" host="app"
-
-## app-tailscale: Open the Sample App via Tailscale
-app-tailscale:
-	@echo "$(GREEN)Opening Sample App (Tailscale) at https://app-onprem.tail13bd49.ts.net...$(NC)"
-	@open "https://app-onprem.tail13bd49.ts.net" || true
 
 
 # ====================================================================================
@@ -320,7 +221,7 @@ check-deps:
 install-deps:
 	@echo "$(BLUE)Installing any missing dependencies via Homebrew...$(NC)"
 	@command -v brew >/dev/null 2>&1 || { echo "$(RED)Homebrew is required to auto-install dependencies$(NC)"; exit 1; }
-	@brew install k3d opentofu kubectl helm golangci-lint yamllint gosec trivy
+	@brew install k3d terraform kubectl helm golangci-lint yamllint gosec trivy
 	@echo "$(GREEN)✓ Dependencies installed.$(NC)"
 
 ## clean: Clean up temporary files and build caches
